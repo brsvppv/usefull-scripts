@@ -1,0 +1,11 @@
+<#
+.SYNOPSIS
+    Short description
+.PARAMETER Example
+    Example parameter
+#>
+param(
+    [string]$Example = ''
+)
+
+# ...implementation...

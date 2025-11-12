@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+# NAME: short-name.sh
+# PURPOSE: One-line purpose
+# USAGE: short-name.sh [options]
+
+set -euo pipefail
+
+# ...implementation...

@@ -1,0 +1,55 @@
+name: CI - Lint & Smoke Tests
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  shellcheck:
+    name: ShellCheck (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Run shellcheck on shell scripts
+        run: |
+          find . -type f -name "*.sh" -not -path "./.git/*" -print0 | xargs -0 shellcheck || true
+
+  powershell-lint:
+    name: PowerShell Lint & Smoke (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup PowerShell
+        uses: actions/setup-powershell@v2
+      - name: Install PSScriptAnalyzer
+        run: Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser -Verbose
+      - name: Lint PowerShell
+        shell: pwsh
+        run: |
+          Get-ChildItem -Path . -Recurse -Filter *.ps1 | ForEach-Object { Invoke-ScriptAnalyzer -Path $_.FullName -Recurse }
+      - name: Run PowerShell smoke examples
+        shell: pwsh
+        run: |
+          & .\windows\powershell\example.ps1
+
+  python:
+    name: Python Lint & Smoke (Ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      - name: Install ruff
+        run: python -m pip install --upgrade pip ruff
+      - name: Lint Python
+        run: |
+          ruff check . || true
+      - name: Run Python smoke example
+        run: |
+          python3 cross-platform/python/cli.py
