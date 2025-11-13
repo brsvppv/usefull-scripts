@@ -88,16 +88,14 @@ error_handler() {
 
 # --- UI & Logging Functions ---
 handle_cancel() {
-    if [[ $? -ne 0 ]]; then
-        clear
-        printf '\033c' 2>/dev/null || true
-        echo ""
-        echo -e "${YW}[INFO] Operation cancelled by user.${CL}"
-        echo ""
-        echo "Thank you for using Proxmox LXC Disk Resizer!"
-        echo ""
-        exit 0
-    fi
+    clear
+    printf '\033c' 2>/dev/null || true
+    echo ""
+    echo -e "${YW}[INFO] Operation cancelled by user.${CL}"
+    echo ""
+    echo "Thank you for using Proxmox LXC Disk Resizer!"
+    echo ""
+    exit 0
 }
 
 error() {
@@ -326,8 +324,7 @@ convert_to_gb() {
 select_container() {
     dialog --backtitle "$BACKTITLE" --title "Select Container" \
            --radiolist "Choose the container to resize:" \
-           20 80 10 "${CONTAINERS[@]}" 2>"$TEMP_FILE"
-    handle_cancel $?
+           20 80 10 "${CONTAINERS[@]}" 2>"$TEMP_FILE" || handle_cancel
     
     SELECTED_CTID=$(cat "$TEMP_FILE")
     
@@ -344,8 +341,7 @@ configure_new_size() {
     while true; do
         dialog --backtitle "$BACKTITLE" --title "New Disk Size" \
                --inputbox "Enter new disk size for CT $SELECTED_CTID ($HOSTNAME)\n\nCurrent size: $CURRENT_SIZE\nExamples: 10G, 20G, 1024M, 2T\n\nNew size:" \
-               12 60 "" 2>"$TEMP_FILE"
-        handle_cancel $?
+               12 60 "" 2>"$TEMP_FILE" || handle_cancel
         
         local input_size=$(cat "$TEMP_FILE")
         
@@ -403,8 +399,7 @@ Planned Operations:
         dialog --backtitle "$BACKTITLE" \
                --title "Dry Run Summary" \
                --msgbox "$summary\n\n--- DRY RUN MODE ---\nNo actual changes will be made.\nThis will show you what would happen." \
-               22 70
-        handle_cancel $?
+               22 70 || handle_cancel
         
         # Ask if user wants to proceed with real operation
         dialog --backtitle "$BACKTITLE" \
@@ -423,7 +418,7 @@ Planned Operations:
                --yesno "$summary\n\n--- LIVE OPERATION WARNING ---\nThis WILL modify your container!\n\n✓ Ensure you have recent backups\n✓ Container will be stopped during resize\n✓ Operation cannot be undone\n\nProceed with disk resize?" \
                24 70
         if [[ $? -ne 0 ]]; then
-            handle_cancel 1
+            handle_cancel
         fi
     fi
 }
@@ -589,7 +584,6 @@ main() {
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo
 }
-
 
 # Execute main function
 main "$@"
