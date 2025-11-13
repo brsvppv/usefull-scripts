@@ -1415,7 +1415,5 @@
         show_success_summary
     }
 
-    # Execute main function if script is run directly
-    if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-        main "$@"
-    fi
+    # Execute main function
+    main "$@"

@@ -497,3 +497,5 @@ echo -e "${INFO} Operation logged to: $LOG_FILE${CL}"
 echo
 
 log "Resize completed successfully: CT $CTID ($HOSTNAME) from $CURRENT_SIZE to $FINAL_CONFIG_SIZE"
+
+echo
