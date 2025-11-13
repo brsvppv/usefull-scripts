@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =================================================================
-# Proxmox LXC Disk Resizer - Production GUI Edition
-# Author: GitHub Copilot for Borislav Popov
+# Proxmox LXC Disk Resizer - GUI Edition
+# Author: GitHub Copilot for Borislav Popov  
 # License: MIT
 # 
 # Features:
@@ -10,6 +10,7 @@
 # - **Safe Operation**: Dry-run mode and comprehensive validation
 # - **Universal Support**: Works with ext4 and xfs filesystems
 # - **Professional Logging**: Full audit trail of operations
+# - **Portable**: Works across different Proxmox environments
 # =================================================================
 
 set -Eeuo pipefail
@@ -17,7 +18,7 @@ IFS=$'\n\t'
 
 # --- Production Configuration ---
 readonly LOG_FILE="/var/log/proxmox-lxc-resizer.log"
-readonly BACKTITLE="Proxmox LXC Disk Resizer - Production GUI"
+readonly BACKTITLE="Proxmox LXC Disk Resizer - GUI Edition"
 readonly TEMP_FILE=$(mktemp)
 
 # Global variables initialization
@@ -201,14 +202,17 @@ validate_new_size() {
     fi
     
     # Extract number and unit
-    local num="${size%?}"
-    local unit="${size: -1}"
-    
-    # If no unit, assume G
-    if [[ "$unit" =~ ^[0-9]$ ]]; then
+    local num unit
+    if [[ "$size" =~ ^[0-9]+$ ]]; then
+        # No unit specified, assume G
         num="$size"
         unit="G"
         NEW_SIZE="${size}G"
+    else
+        # Unit specified
+        num="${size%?}"
+        unit="${size: -1}"
+        NEW_SIZE="$size"
     fi
     
     # Validate ranges
@@ -220,6 +224,102 @@ validate_new_size() {
     esac
     
     return 0
+}
+
+validate_resize_preconditions() {
+    local ctid="$1"
+    local new_size="$2"
+    
+    log "Validating resize preconditions for CT $ctid"
+    
+    # Check if container exists
+    if ! pct config "$ctid" >/dev/null 2>&1; then
+        error "Container CT $ctid does not exist" $ERR_CONTAINER_NOT_FOUND
+    fi
+    
+    # Get current rootfs info
+    local rootfs_line=$(pct config "$ctid" | grep "^rootfs:" 2>/dev/null || echo "")
+    if [[ -z "$rootfs_line" ]]; then
+        error "Cannot read rootfs configuration for CT $ctid" $ERR_CONTAINER_NOT_FOUND
+    fi
+    
+    # Extract storage and current size (improved parsing)
+    local storage=$(echo "$rootfs_line" | cut -d':' -f2 | cut -d',' -f1 | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
+    local current_size_raw=$(echo "$rootfs_line" | grep -oE 'size=[^,]*' | cut -d'=' -f2 2>/dev/null || echo "")
+    
+    if [[ -z "$current_size_raw" ]]; then
+        error "Cannot determine current disk size for CT $ctid" $ERR_INVALID_SIZE
+    fi
+    
+    log "Current configuration: $rootfs_line"
+    log "Storage: $storage, Current size: $current_size_raw, New size: $new_size"
+    
+    # Portable storage validation (like console version)
+    local storage_valid=false
+    
+    # Method 1: Check if storage is active via pvesm
+    if pvesm status 2>/dev/null | grep -q "^$storage"; then
+        storage_valid=true
+        log "Storage validation: $storage found via pvesm status"
+    # Method 2: Try direct pvesm list on the storage
+    elif pvesm list "$storage" >/dev/null 2>&1; then
+        storage_valid=true
+        log "Storage validation: $storage accessible via pvesm list"
+    # Method 3: Check storage configuration file
+    elif [[ -f /etc/pve/storage.cfg ]] && grep -q "^\[$storage\]" /etc/pve/storage.cfg 2>/dev/null; then
+        storage_valid=true
+        log "Storage validation: $storage found in storage.cfg"
+    # Method 4: Skip validation for common storage types
+    elif [[ "$storage" =~ ^(local|local-lvm|ZFS|rpool|tank|data|storage)$ ]]; then
+        storage_valid=true
+        log "Storage validation: $storage is common storage name, assuming valid"
+    fi
+    
+    if [[ "$storage_valid" != "true" ]]; then
+        # Don't fail - just warn and continue (like console version)
+        warn "Could not validate storage '$storage' - continuing anyway"
+        log "Storage validation: Could not validate $storage, but continuing"
+    fi
+    
+    # Validate new size is larger than current
+    local current_gb=$(convert_to_gb "$current_size_raw")
+    local new_gb=$(convert_to_gb "$new_size")
+    
+    log "Size comparison: current_size_raw='$current_size_raw' -> current_gb='$current_gb'"
+    log "Size comparison: new_size='$new_size' -> new_gb='$new_gb'"
+    
+    if [[ $new_gb -le $current_gb ]]; then
+        error "New size ($new_size = ${new_gb}GB) must be larger than current size ($current_size_raw = ${current_gb}GB)" $ERR_INVALID_SIZE
+    fi
+    
+    return 0
+}
+
+convert_to_gb() {
+    local size="$1"
+    
+    # Handle empty or invalid input
+    if [[ -z "$size" ]]; then
+        echo "0"
+        return
+    fi
+    
+    # Extract number and unit
+    if [[ "$size" =~ ^[0-9]+$ ]]; then
+        # No unit, assume already in GB
+        echo "$size"
+        return
+    fi
+    
+    local num="${size%?}"
+    local unit="${size: -1}"
+    
+    case "$unit" in
+        M|m) echo "$((num / 1024))" ;;
+        G|g) echo "$num" ;;
+        T|t) echo "$((num * 1024))" ;;
+        *) echo "0" ;;
+    esac
 }
 
 # --- Configuration Functions ---
@@ -275,34 +375,42 @@ configure_dry_run() {
 }
 
 show_operation_summary() {
-    local summary="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Disk Resize Operation Summary
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Container ID:      $SELECTED_CTID
-  Hostname:          $HOSTNAME
-  Current Status:    $STATUS
-  Current Size:      $CURRENT_SIZE
-  New Size:          $NEW_SIZE
-  Mode:              $([ "$DRY_RUN" == "yes" ] && echo "Dry Run" || echo "Live Operation")
-  
-  Operations:
-  1. Stop container (if running)
-  2. Resize rootfs volume
-  3. Start container
-  4. Expand filesystem
-  5. Verify results
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    local mode_text="$([ "$DRY_RUN" == "yes" ] && echo "DRY RUN" || echo "LIVE OPERATION")"
+    
+    local summary="DISK RESIZE OPERATION SUMMARY
+
+Container Information:
+• Container ID:     $SELECTED_CTID
+• Hostname:         $HOSTNAME
+• Current Status:   $STATUS
+
+Disk Configuration:
+• Current Size:     $CURRENT_SIZE
+• New Size:         $NEW_SIZE
+• Mode:             $mode_text
+
+Planned Operations:
+1. Stop container (if running)
+2. Validate resize preconditions
+3. Resize rootfs volume
+4. Start container
+5. Wait for container boot
+6. Detect filesystem type
+7. Expand filesystem
+8. Verify results"
 
     if [ "$DRY_RUN" == "yes" ]; then
-        dialog --title "Dry Run Results" \
-               --msgbox "$summary\n\nDRY RUN MODE: No changes will be made.\n\nProceed with actual resize?" \
-               25 80
+        dialog --backtitle "$BACKTITLE" \
+               --title "Dry Run Summary" \
+               --msgbox "$summary\n\n--- DRY RUN MODE ---\nNo actual changes will be made.\nThis will show you what would happen." \
+               22 70
         handle_cancel $?
         
         # Ask if user wants to proceed with real operation
-        dialog --title "Proceed with Real Operation?" \
-               --yesno "Dry run completed successfully.\n\nProceed with actual disk resize operation?\n\n⚠️ This will modify the container!" \
-               10 60
+        dialog --backtitle "$BACKTITLE" \
+               --title "Proceed with Real Operation?" \
+               --yesno "Dry run simulation completed.\n\nDo you want to proceed with the actual disk resize?\n\n⚠️  WARNING: This will modify CT $SELECTED_CTID\n⚠️  Ensure you have backups before proceeding!" \
+               12 70
         if [[ $? -ne 0 ]]; then
             clear
             echo -e "${YW}[INFO] Operation cancelled after dry run.${CL}"
@@ -310,9 +418,10 @@ show_operation_summary() {
         fi
         DRY_RUN="no"
     else
-        dialog --title "Confirm Disk Resize" \
-               --yesno "$summary\n\n⚠️ LIVE OPERATION WARNING ⚠️\n\nThis will modify your container!\nEnsure you have a backup!\n\nProceed with disk resize?" \
-               25 80
+        dialog --backtitle "$BACKTITLE" \
+               --title "⚠️  CONFIRM DISK RESIZE  ⚠️" \
+               --yesno "$summary\n\n--- LIVE OPERATION WARNING ---\nThis WILL modify your container!\n\n✓ Ensure you have recent backups\n✓ Container will be stopped during resize\n✓ Operation cannot be undone\n\nProceed with disk resize?" \
+               24 70
         if [[ $? -ne 0 ]]; then
             handle_cancel 1
         fi
@@ -332,20 +441,40 @@ perform_resize_operation() {
     
     # Step 1: Stop container if running
     if [[ "$STATUS" == "running" ]]; then
-        info "[1/7] Stopping container CT $SELECTED_CTID..."
+        info "[1/8] Stopping container CT $SELECTED_CTID..."
         if ! pct stop "$SELECTED_CTID" 2>/dev/null; then
             error "Failed to stop container CT $SELECTED_CTID" $ERR_CONTAINER_START_FAILED
         fi
         msg_ok "Container stopped successfully"
     else
-        info "[1/7] Container already stopped"
+        info "[1/8] Container already stopped"
     fi
     
-    # Step 2: Resize rootfs
-    info "[2/7] Resizing rootfs to $NEW_SIZE..."
-    if ! pct resize "$SELECTED_CTID" rootfs "$NEW_SIZE" 2>/dev/null; then
-        error "Failed to resize rootfs for CT $SELECTED_CTID" $ERR_RESIZE_FAILED
+    # Step 2: Pre-resize validation
+    info "[2/8] Validating resize preconditions..."
+    validate_resize_preconditions "$SELECTED_CTID" "$NEW_SIZE"
+    msg_ok "Preconditions validated"
+    
+    # Step 3: Resize rootfs
+    info "[3/8] Resizing rootfs to $NEW_SIZE..."
+    log "About to execute: pct resize $SELECTED_CTID rootfs $NEW_SIZE"
+    
+    local resize_output=$(mktemp)
+    if ! pct resize "$SELECTED_CTID" rootfs "$NEW_SIZE" 2>"$resize_output"; then
+        local error_msg=$(cat "$resize_output" 2>/dev/null || echo "Unknown error")
+        log "Resize failed with error: $error_msg"
+        rm -f "$resize_output" 2>/dev/null
+        
+        # Show detailed error dialog
+        dialog --backtitle "$BACKTITLE" \
+               --title "⚠️  Resize Failed  ⚠️" \
+               --msgbox "Failed to resize rootfs for CT $SELECTED_CTID\n\nError Details:\n$error_msg\n\nPossible causes:\n• Insufficient storage space\n• Storage backend limitations\n• Invalid size format\n• Container state issues\n\nCheck logs: $LOG_FILE" \
+               16 70
+        
+        error "Failed to resize rootfs for CT $SELECTED_CTID: $error_msg" $ERR_RESIZE_FAILED
     fi
+    rm -f "$resize_output" 2>/dev/null
+    log "pct resize command completed successfully"
     msg_ok "Rootfs resized successfully"
     
     # Verify resize
@@ -354,15 +483,15 @@ perform_resize_operation() {
         warn "Expected $NEW_SIZE, got $new_config_size in config"
     fi
     
-    # Step 3: Start container
-    info "[3/7] Starting container..."
+    # Step 4: Start container
+    info "[4/8] Starting container..."
     if ! pct start "$SELECTED_CTID" 2>/dev/null; then
         error "Failed to start container CT $SELECTED_CTID" $ERR_CONTAINER_START_FAILED
     fi
     msg_ok "Container started successfully"
     
-    # Step 4: Wait for boot
-    info "[4/7] Waiting for container to be ready..."
+    # Step 5: Wait for boot
+    info "[5/8] Waiting for container to be ready..."
     local timeout=60
     local count=0
     until pct exec "$SELECTED_CTID" -- uptime >/dev/null 2>&1; do
@@ -374,14 +503,14 @@ perform_resize_operation() {
     done
     msg_ok "Container is ready"
     
-    # Step 5: Detect filesystem
-    info "[5/7] Detecting filesystem type..."
+    # Step 6: Detect filesystem
+    info "[6/8] Detecting filesystem type..."
     ROOT_DEVICE=$(pct exec "$SELECTED_CTID" -- findmnt -n -o SOURCE / 2>/dev/null || echo "unknown")
     FS_TYPE=$(pct exec "$SELECTED_CTID" -- findmnt -n -o FSTYPE / 2>/dev/null || echo "unknown")
     info "Filesystem: $FS_TYPE on $ROOT_DEVICE"
     
-    # Step 6: Expand filesystem
-    info "[6/7] Expanding filesystem..."
+    # Step 7: Expand filesystem
+    info "[7/8] Expanding filesystem..."
     case "$FS_TYPE" in
         ext4)
             if ! pct exec "$SELECTED_CTID" -- resize2fs "$ROOT_DEVICE" >/dev/null 2>&1; then
@@ -400,8 +529,8 @@ perform_resize_operation() {
             ;;
     esac
     
-    # Step 7: Verify results
-    info "[7/7] Verifying resize operation..."
+    # Step 8: Verify results
+    info "[8/8] Verifying resize operation..."
     local disk_usage=$(pct exec "$SELECTED_CTID" -- df -h / | awk 'NR==2 {print $2}' 2>/dev/null || echo "unknown")
     local final_config_size=$(pct config "$SELECTED_CTID" | grep "^rootfs:" | grep -oE 'size=[^,]*' | cut -d'=' -f2 2>/dev/null || echo "unknown")
     msg_ok "Resize operation completed successfully"
