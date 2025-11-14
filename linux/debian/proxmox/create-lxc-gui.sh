@@ -588,7 +588,7 @@
                     local template_file="${full_volid##*/}"
                     
                     # Skip if we've already seen this template filename
-                    if [[ -n "${seen_templates[$template_file]}" ]]; then
+                    if [[ -v "seen_templates[$template_file]" ]]; then
                         msg_info "Skipping duplicate template: $template_file (already added from ${seen_templates[$template_file]})"
                         continue
                     fi
