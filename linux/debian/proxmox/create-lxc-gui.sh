@@ -218,62 +218,15 @@
     }
     
     handle_cancel() {
-        local exit_code="${1:-$?}"
-        if [[ $exit_code -ne 0 ]]; then
-            # Comprehensive dialog and process cleanup
-            {
-                # Kill all dialog-related processes with escalating force
-                pkill -f "dialog.*lxc" 2>/dev/null || true
-                sleep 0.1
-                pkill -TERM -f "dialog" 2>/dev/null || true
-                sleep 0.2
-                pkill -KILL -f "dialog" 2>/dev/null || true
-                killall -TERM dialog 2>/dev/null || true
-                sleep 0.1
-                killall -KILL dialog 2>/dev/null || true
-                killall -TERM whiptail 2>/dev/null || true
-                killall -KILL whiptail 2>/dev/null || true
-                
-                # Kill any orphaned background processes
-                jobs -p | xargs -r kill -TERM 2>/dev/null || true
-                sleep 0.1
-                jobs -p | xargs -r kill -KILL 2>/dev/null || true
-                
-                # Force close file descriptors that might be held by dialog
-                exec 3>&- 2>/dev/null || true
-                exec 4>&- 2>/dev/null || true
-                exec 5>&- 2>/dev/null || true
-            } >/dev/null 2>&1
-            
-            # Multi-stage terminal restoration (NOT suppressed - needs to be visible)
-            # Stage 1: Exit alternate screen buffer (dialog mode)
-            tput rmcup 2>/dev/null || true
-            
-            # Stage 2: Full terminal reset
-            reset 2>/dev/null || printf '\033c'
-            
-            # Stage 3: Ensure cursor is visible
-            tput cnorm 2>/dev/null || printf '\033[?25h'
-            
-            # Stage 4: Clear screen completely
-            clear 2>/dev/null || printf '\033[2J\033[H'
-            
-            # Stage 5: Reset terminal state
-            stty sane 2>/dev/null || true
-            
-            # Give terminal time to settle
-            sleep 0.2
-            
-            # Final cleanup and user message
-            echo ""
-            echo -e "${YW}[INFO] Operation cancelled by user.${CL}"
-            echo ""
-            echo "Thank you for using Proxmox LXC Builder!"
-            echo ""
-            
-            # Ensure clean exit
-            exit 0
-        fi
+        clear
+        printf '\033c' 2>/dev/null || true
+        echo ""
+        echo -e "${YW}[INFO] Operation cancelled by user.${CL}"
+        echo ""
+        echo "Thank you for using Proxmox LXC Builder!"
+        echo ""
+        log "Operation cancelled by user"
+        exit 0
     }
 
     error() {
@@ -865,7 +818,7 @@
         dialog_safe --backtitle "$BACKTITLE" --title "Select LXC Template" \
             --radiolist "Choose the operating system template for your container:" \
             20 80 10 "${TEMPLATES[@]}" 2>"$TEMP_FILE"
-        handle_cancel $?
+        handle_cancel
         
         local selected_tag=$(cat "$TEMP_FILE")
         TEMPLATE_VOLID="${TEMPLATE_MAP[$selected_tag]}"
@@ -888,7 +841,7 @@
             dialog_safe --backtitle "$BACKTITLE" --title "Select Target Node" \
                 --radiolist "Choose the Proxmox node where the container will be created:" \
                 15 60 8 "${NODE_OPTS[@]}" 2>"$TEMP_FILE"
-            handle_cancel $?
+            handle_cancel
             
             TARGET_NODE=$(cat "$TEMP_FILE")
         fi
@@ -913,7 +866,7 @@
             local dialog_exit_code=$?
             if [[ $dialog_exit_code -ne 0 ]]; then
                 rm -f "$ctid_temp" 2>/dev/null || true
-                handle_cancel $dialog_exit_code
+                handle_cancel
             fi
             
             # Secure input processing with multiple validation layers
@@ -958,7 +911,7 @@
             local dialog_exit_code=$?
             if [[ $dialog_exit_code -ne 0 ]]; then
                 rm -f "$hostname_temp" 2>/dev/null || true
-                handle_cancel $dialog_exit_code
+                handle_cancel
             fi
             
             # Secure hostname processing
@@ -991,7 +944,7 @@
             dialog_safe --backtitle "$BACKTITLE" --title "CPU Configuration" \
                 --inputbox "Enter the number of CPU cores (1-16):" \
                 10 50 "2" 2>"$TEMP_FILE"
-            handle_cancel $?
+            handle_cancel
             
             CPU=$(cat "$TEMP_FILE")
             
@@ -1009,7 +962,7 @@
             dialog_safe --backtitle "$BACKTITLE" --title "Memory Configuration" \
                 --inputbox "Enter RAM size in MB (512-16384):" \
                 10 50 "1024" 2>"$TEMP_FILE"
-            handle_cancel $?
+            handle_cancel
             
             RAM=$(cat "$TEMP_FILE")
             
@@ -1028,7 +981,7 @@
             dialog_safe --backtitle "$BACKTITLE" --title "Swap Configuration" \
                 --inputbox "Enter swap size in MB (0 to disable):" \
                 10 50 "$suggested_swap" 2>"$TEMP_FILE"
-            handle_cancel $?
+            handle_cancel
             
             SWAP=$(cat "$TEMP_FILE")
             
@@ -1045,7 +998,7 @@
         dialog_safe --backtitle "$BACKTITLE" --title "Storage Selection" \
             --radiolist "Choose storage pool for the container:" \
             15 70 8 "${STORAGE_OPTS[@]}" 2>"$TEMP_FILE"
-        handle_cancel $?
+        handle_cancel
         
         STORAGE=$(cat "$TEMP_FILE")
         
@@ -1054,7 +1007,7 @@
             dialog_safe --backtitle "$BACKTITLE" --title "Disk Configuration" \
                 --inputbox "Enter disk size in GB (4-500):" \
                 10 50 "8" 2>"$TEMP_FILE"
-            handle_cancel $?
+            handle_cancel
             
             DISK=$(cat "$TEMP_FILE")
             
@@ -1089,7 +1042,7 @@
             "nesting" "Enable container nesting (Docker in LXC)" "OFF" \
             "keyctl" "Enable keyctl (systemd services)" "OFF" \
             "fuse" "Enable FUSE filesystem support" "OFF" 2>"$TEMP_FILE"
-        handle_cancel $?
+        handle_cancel
         
         # Process selected features
         FEATURES=""
@@ -1109,7 +1062,7 @@
         dialog_safe --backtitle "$BACKTITLE" --title "Network Bridge" \
             --radiolist "Select network bridge:" \
             12 60 5 "${BRIDGE_OPTS[@]}" 2>"$TEMP_FILE"
-        handle_cancel $?
+        handle_cancel
         
         BRIDGE=$(cat "$TEMP_FILE")
         
@@ -1119,7 +1072,7 @@
             12 60 3 \
             "dhcp" "DHCP (Automatic IP assignment)" "ON" \
             "static" "Static IP (Manual configuration)" "OFF" 2>"$TEMP_FILE"
-        handle_cancel $?
+        handle_cancel
         
         NET_CONFIG=$(cat "$TEMP_FILE")
         
@@ -1129,7 +1082,7 @@
                 dialog_safe --backtitle "$BACKTITLE" --title "Static IP Configuration" \
                     --inputbox "Enter IP address with CIDR (e.g., 192.168.1.100/24):" \
                     10 60 "" 2>"$TEMP_FILE"
-                handle_cancel $?
+                handle_cancel
                 
                 IP_CIDR=$(cat "$TEMP_FILE")
                 
@@ -1146,7 +1099,7 @@
             dialog_safe --backtitle "$BACKTITLE" --title "Gateway Configuration" \
                 --inputbox "Enter gateway IP address (leave empty for auto):" \
                 10 60 "" 2>"$TEMP_FILE"
-            handle_cancel $?
+            handle_cancel
             
             GW=$(cat "$TEMP_FILE")
             
@@ -1154,7 +1107,7 @@
             dialog_safe --backtitle "$BACKTITLE" --title "VLAN Configuration" \
                 --inputbox "Enter VLAN ID (leave empty for no VLAN):" \
                 10 60 "" 2>"$TEMP_FILE"
-            handle_cancel $?
+            handle_cancel
             
             VLAN=$(cat "$TEMP_FILE")
             
@@ -1172,7 +1125,7 @@
             dialog_safe --backtitle "$BACKTITLE" --title "VLAN Configuration" \
                 --inputbox "Enter VLAN ID (leave empty for no VLAN):" \
                 10 60 "" 2>"$TEMP_FILE"
-            handle_cancel $?
+            handle_cancel
             
             VLAN=$(cat "$TEMP_FILE")
             [[ -n "$VLAN" ]] && NET_OPTS+=",tag=$VLAN"
