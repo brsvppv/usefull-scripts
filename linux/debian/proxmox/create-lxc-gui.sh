@@ -23,6 +23,7 @@
 
     # Global variables initialization (prevents undefined variable errors)
     TEMPLATES=()
+    declare -A TEMPLATE_MAP
     NODE_OPTS=()
     STORAGE_OPTS=()
     BRIDGE_OPTS=()
@@ -553,7 +554,6 @@
         
         TEMPLATES=()
         declare -A seen_templates  # Track unique template filenames to avoid duplicates
-        declare -A template_map     # Map display name to full volid
         
         # Get all storage pools that support templates
         local storage_list
@@ -635,13 +635,13 @@
                     fi
                     
                     # Add to templates array with proper formatting
-                    # Format: tag (display name) | description | status
+                    # Format: tag (basename) | description (size + status) | default
                     # Store mapping to retrieve full volid later
                     local tag="$template_basename"
-                    local description="${template_basename}${size_info} ${template_status}"
+                    local description="${size_info} ${template_status}"
                     
                     # Store the mapping from display name to full volid
-                    template_map["$tag"]="$full_volid"
+                    TEMPLATE_MAP["$tag"]="$full_volid"
                     
                     TEMPLATES+=("$tag" "$description" "OFF")
                     template_count=$((template_count + 1))
@@ -869,7 +869,7 @@
         handle_cancel $dialog_exit
         
         local selected_tag=$(cat "$TEMP_FILE")
-        TEMPLATE_VOLID="${template_map[$selected_tag]}"
+        TEMPLATE_VOLID="${TEMPLATE_MAP[$selected_tag]}"
         
         # Safely extract template basename with fallback
         TEMPLATE_BASENAME="$TEMPLATE_VOLID"
