@@ -1336,10 +1336,9 @@
             12 70
 
         # Post-creation options
-        dialog --title "Container Management" \
+        if dialog --title "Container Management" \
             --yesno "Would you like to start container $CTID now?\n\nYou can also start it later using:\npct start $CTID" \
-            10 60
-        if [[ $? -eq 0 ]]; then
+            10 60; then
             msg_info "Starting container $CTID..."
             if pct start "$CTID" 2>/dev/null; then
                 msg_ok "Container $CTID started successfully"
