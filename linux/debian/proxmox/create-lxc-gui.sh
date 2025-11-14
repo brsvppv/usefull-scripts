@@ -1044,17 +1044,24 @@
         FEATURES=""
         local selected_features=$(cat "$TEMP_FILE")
         
-        # Remove quotes and process each feature
+        log "DEBUG: Raw checklist output: '$selected_features'"
+        
+        # Remove all quotes using bash parameter expansion (no external commands)
+        selected_features="${selected_features//\"/}"
+        
+        log "DEBUG: After quote removal: '$selected_features'"
+        
+        # Process each feature
         for feature in $selected_features; do
-            # Strip quotes from feature name
-            feature=$(echo "$feature" | tr -d '"')
             [[ -n "$feature" ]] || continue
             FEATURES+="$feature=1,"
+            log "DEBUG: Added feature: $feature"
         done
         
         # Remove trailing comma
         FEATURES=${FEATURES%,}
         
+        log "DEBUG: Final FEATURES string: '$FEATURES'"
         [[ -n "$FEATURES" ]] && log "Features: $FEATURES" || log "Features: none"
     }
 
