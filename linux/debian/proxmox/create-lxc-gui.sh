@@ -865,12 +865,7 @@
             
             dialog --backtitle "$BACKTITLE" --title "Container ID" \
                 --inputbox "Container ID:" \
-                8 40 "$suggested_ctid" 2>"$ctid_temp"
-            
-            local dialog_exit_code=$?
-            if [[ $dialog_exit_code -ne 0 ]]; then
-                rm -f "$ctid_temp" 2>/dev/null || true
-            fi
+                8 40 "$suggested_ctid" 2>"$ctid_temp" || handle_cancel
             
             # Secure input processing with multiple validation layers
             local raw_input
@@ -909,12 +904,7 @@
             
             dialog --backtitle "$BACKTITLE" --title "Container Hostname" \
                 --inputbox "Hostname:" \
-                8 40 "${default_hostname}" 2>"$hostname_temp"
-            
-            local dialog_exit_code=$?
-            if [[ $dialog_exit_code -ne 0 ]]; then
-                rm -f "$hostname_temp" 2>/dev/null || true
-            fi
+                8 40 "${default_hostname}" 2>"$hostname_temp" || handle_cancel
             
             # Secure hostname processing
             local raw_hostname
