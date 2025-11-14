@@ -1040,12 +1040,17 @@
             "keyctl" "Enable keyctl (systemd services)" "OFF" \
             "fuse" "Enable FUSE filesystem support" "OFF" 2>"$TEMP_FILE" || handle_cancel
         
-        # Process selected features
+        # Process selected features - dialog returns space-separated quoted items like: "nesting" "keyctl"
         FEATURES=""
-        while read -r feature; do
+        local selected_features=$(cat "$TEMP_FILE")
+        
+        # Remove quotes and process each feature
+        for feature in $selected_features; do
+            # Strip quotes from feature name
+            feature=$(echo "$feature" | tr -d '"')
             [[ -n "$feature" ]] || continue
             FEATURES+="$feature=1,"
-        done < "$TEMP_FILE"
+        done
         
         # Remove trailing comma
         FEATURES=${FEATURES%,}
