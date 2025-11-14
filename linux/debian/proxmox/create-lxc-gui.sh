@@ -218,22 +218,15 @@
     }
     
     handle_cancel() {
-        local exit_code="${1:-1}"
-        # Dialog exit codes: 0=OK, 1=Cancel, 255=ESC
-        # Only exit if user explicitly cancelled (1) or pressed ESC (255)
-        if [[ $exit_code -eq 1 ]] || [[ $exit_code -eq 255 ]]; then
-            clear
-            printf '\033c' 2>/dev/null || true
-            echo ""
-            echo -e "${YW}[INFO] Operation cancelled by user.${CL}"
-            echo ""
-            echo "Thank you for using Proxmox LXC Builder!"
-            echo ""
-            log "Operation cancelled by user"
-            exit 0
-        fi
-        # For other exit codes (errors), return the code
-        return $exit_code
+        clear
+        printf '\033c' 2>/dev/null || true
+        echo ""
+        echo -e "${YW}[INFO] Operation cancelled by user.${CL}"
+        echo ""
+        echo "Thank you for using Proxmox LXC Builder!"
+        echo ""
+        log "Operation cancelled by user"
+        exit 0
     }
 
     error() {
@@ -824,8 +817,7 @@
         # Template selection
         dialog --backtitle "$BACKTITLE" --title "Select LXC Template" \
             --radiolist "Choose the operating system template for your container:" \
-            20 80 10 "${TEMPLATES[@]}" 2>"$TEMP_FILE"
-        handle_cancel $?
+            20 80 10 "${TEMPLATES[@]}" 2>"$TEMP_FILE" || handle_cancel
         
         local selected_tag=$(cat "$TEMP_FILE")
         TEMPLATE_VOLID="${TEMPLATE_MAP[$selected_tag]}"
@@ -847,8 +839,7 @@
         if [[ ${#NODE_OPTS[@]} -gt 0 ]]; then
             dialog --backtitle "$BACKTITLE" --title "Select Target Node" \
                 --radiolist "Choose the Proxmox node where the container will be created:" \
-                15 60 8 "${NODE_OPTS[@]}" 2>"$TEMP_FILE"
-            handle_cancel $?
+                15 60 8 "${NODE_OPTS[@]}" 2>"$TEMP_FILE" || handle_cancel
             
             TARGET_NODE=$(cat "$TEMP_FILE")
         fi
@@ -948,8 +939,7 @@
         while true; do
             dialog --backtitle "$BACKTITLE" --title "CPU Configuration" \
                 --inputbox "Enter the number of CPU cores (1-16):" \
-                10 50 "2" 2>"$TEMP_FILE"
-            handle_cancel $?
+                10 50 "2" 2>"$TEMP_FILE" || handle_cancel
             
             CPU=$(cat "$TEMP_FILE")
             
@@ -966,8 +956,7 @@
         while true; do
             dialog --backtitle "$BACKTITLE" --title "Memory Configuration" \
                 --inputbox "Enter RAM size in MB (512-16384):" \
-                10 50 "1024" 2>"$TEMP_FILE"
-            handle_cancel $?
+                10 50 "1024" 2>"$TEMP_FILE" || handle_cancel
             
             RAM=$(cat "$TEMP_FILE")
             
@@ -985,8 +974,7 @@
             local suggested_swap=$((RAM / 2))
             dialog --backtitle "$BACKTITLE" --title "Swap Configuration" \
                 --inputbox "Enter swap size in MB (0 to disable):" \
-                10 50 "$suggested_swap" 2>"$TEMP_FILE"
-            handle_cancel $?
+                10 50 "$suggested_swap" 2>"$TEMP_FILE" || handle_cancel
             
             SWAP=$(cat "$TEMP_FILE")
             
@@ -1002,8 +990,7 @@
         # Storage pool
         dialog --backtitle "$BACKTITLE" --title "Storage Selection" \
             --radiolist "Choose storage pool for the container:" \
-            15 70 8 "${STORAGE_OPTS[@]}" 2>"$TEMP_FILE"
-        handle_cancel $?
+            15 70 8 "${STORAGE_OPTS[@]}" 2>"$TEMP_FILE" || handle_cancel
         
         STORAGE=$(cat "$TEMP_FILE")
         
@@ -1011,8 +998,7 @@
         while true; do
             dialog --backtitle "$BACKTITLE" --title "Disk Configuration" \
                 --inputbox "Enter disk size in GB (4-500):" \
-                10 50 "8" 2>"$TEMP_FILE"
-            handle_cancel $?
+                10 50 "8" 2>"$TEMP_FILE" || handle_cancel
             
             DISK=$(cat "$TEMP_FILE")
             
@@ -1046,8 +1032,7 @@
             15 70 5 \
             "nesting" "Enable container nesting (Docker in LXC)" "OFF" \
             "keyctl" "Enable keyctl (systemd services)" "OFF" \
-            "fuse" "Enable FUSE filesystem support" "OFF" 2>"$TEMP_FILE"
-        handle_cancel $?
+            "fuse" "Enable FUSE filesystem support" "OFF" 2>"$TEMP_FILE" || handle_cancel
         
         # Process selected features
         FEATURES=""
@@ -1066,8 +1051,7 @@
         # Bridge selection
         dialog --backtitle "$BACKTITLE" --title "Network Bridge" \
             --radiolist "Select network bridge:" \
-            12 60 5 "${BRIDGE_OPTS[@]}" 2>"$TEMP_FILE"
-        handle_cancel $?
+            12 60 5 "${BRIDGE_OPTS[@]}" 2>"$TEMP_FILE" || handle_cancel
         
         BRIDGE=$(cat "$TEMP_FILE")
         
@@ -1076,8 +1060,7 @@
             --radiolist "Choose network configuration:" \
             12 60 3 \
             "dhcp" "DHCP (Automatic IP assignment)" "ON" \
-            "static" "Static IP (Manual configuration)" "OFF" 2>"$TEMP_FILE"
-        handle_cancel $?
+            "static" "Static IP (Manual configuration)" "OFF" 2>"$TEMP_FILE" || handle_cancel
         
         NET_CONFIG=$(cat "$TEMP_FILE")
         
@@ -1086,8 +1069,7 @@
             while true; do
                 dialog --backtitle "$BACKTITLE" --title "Static IP Configuration" \
                     --inputbox "Enter IP address with CIDR (e.g., 192.168.1.100/24):" \
-                    10 60 "" 2>"$TEMP_FILE"
-                handle_cancel $?
+                    10 60 "" 2>"$TEMP_FILE" || handle_cancel
                 
                 IP_CIDR=$(cat "$TEMP_FILE")
                 
@@ -1103,16 +1085,14 @@
             # Gateway
             dialog --backtitle "$BACKTITLE" --title "Gateway Configuration" \
                 --inputbox "Enter gateway IP address (leave empty for auto):" \
-                10 60 "" 2>"$TEMP_FILE"
-            handle_cancel $?
+                10 60 "" 2>"$TEMP_FILE" || handle_cancel
             
             GW=$(cat "$TEMP_FILE")
             
             # VLAN (optional)
             dialog --backtitle "$BACKTITLE" --title "VLAN Configuration" \
                 --inputbox "Enter VLAN ID (leave empty for no VLAN):" \
-                10 60 "" 2>"$TEMP_FILE"
-            handle_cancel $?
+                10 60 "" 2>"$TEMP_FILE" || handle_cancel
             
             VLAN=$(cat "$TEMP_FILE")
             
@@ -1129,8 +1109,7 @@
             # VLAN for DHCP (optional)
             dialog --backtitle "$BACKTITLE" --title "VLAN Configuration" \
                 --inputbox "Enter VLAN ID (leave empty for no VLAN):" \
-                10 60 "" 2>"$TEMP_FILE"
-            handle_cancel $?
+                10 60 "" 2>"$TEMP_FILE" || handle_cancel
             
             VLAN=$(cat "$TEMP_FILE")
             [[ -n "$VLAN" ]] && NET_OPTS+=",tag=$VLAN"
