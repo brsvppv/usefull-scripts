@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # Universal LXC Builder for Proxmox VE (Enterprise Production)
-# Author: GitHub Copilot for Borislav Popov (styled like tteck scripts)
+# Author: brsvppv for Borislav Popov (styled like tteck scripts)
 # License: MIT
 # Version: 2.0 - Enterprise Grade
 # 

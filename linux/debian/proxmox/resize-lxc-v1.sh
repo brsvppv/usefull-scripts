@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # Proxmox LXC Disk Resizer - Console Edition v1 (Enterprise)
-# Author: GitHub Copilot for Borislav Popov (styled like tteck scripts)
+# Author: brsvppv for Borislav Popov (styled like tteck scripts)
 # License: MIT
 # Version: 1.1 - Production Ready
 # 
