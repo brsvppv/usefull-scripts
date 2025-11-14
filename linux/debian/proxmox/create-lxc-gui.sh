@@ -795,38 +795,42 @@
         info "Detecting network bridges..."
         
         BRIDGE_OPTS=()
-        
-        # Method 1: Try to get bridges using ip command with safe error handling
         local bridges=""
-        if command -v ip >/dev/null 2>&1; then
-            bridges=$(ip -o link show type bridge 2>/dev/null | awk -F': ' '{print $2}' | grep -E '^vmbr[0-9]+$' || true)
+        
+        # Simple and safe: just list vmbr interfaces from /sys/class/net
+        if [[ -d /sys/class/net ]]; then
+            for iface in /sys/class/net/vmbr*; do
+                if [[ -e "$iface" ]]; then
+                    local bridge_name=$(basename "$iface")
+                    bridges="${bridges}${bridge_name}"$'\n'
+                fi
+            done
         fi
         
-        # Method 2: Fallback to reading /sys/class/net
-        if [[ -z "$bridges" ]] && [[ -d /sys/class/net ]]; then
-            bridges=$(find /sys/class/net -maxdepth 1 -type l -name 'vmbr*' -printf '%f\n' 2>/dev/null | sort || true)
+        # Remove trailing newline and check if empty
+        bridges=$(echo "$bridges" | sed '/^$/d')
+        
+        # Fallback: if no bridges found, assume vmbr0
+        if [[ -z "$bridges" ]]; then
+            bridges="vmbr0"
+            log "No bridges detected, using default: vmbr0"
+        else
+            log "Detected bridges: $(echo "$bridges" | tr '\n' ' ')"
         fi
         
-        # Method 3: Parse /etc/network/interfaces
-        if [[ -z "$bridges" ]] && [[ -f /etc/network/interfaces ]]; then
-            bridges=$(grep -oP '^auto\s+\Kvmbr[0-9]+' /etc/network/interfaces 2>/dev/null || true)
-        fi
-        
-        # Final fallback: assume vmbr0 exists
-        [[ -z "$bridges" ]] && bridges="vmbr0"
-        
-        # Build dialog options array safely
+        # Build dialog options array
         while IFS= read -r bridge; do
-            [[ -n "$bridge" ]] || continue
-            BRIDGE_OPTS+=("$bridge" "$bridge" "OFF")
+            if [[ -n "$bridge" ]]; then
+                BRIDGE_OPTS+=("$bridge" "$bridge" "OFF")
+            fi
         done <<< "$bridges"
         
-        # Select first bridge by default if we have any
-        if [[ ${#BRIDGE_OPTS[@]} -gt 0 ]]; then
+        # Set first bridge as selected by default
+        if [[ ${#BRIDGE_OPTS[@]} -ge 3 ]]; then
             BRIDGE_OPTS[2]="ON"
         fi
         
-        log "Discovered bridges: ${BRIDGE_OPTS[*]}"
+        msg_ok "Found ${#BRIDGE_OPTS[@]:-0} bridge(s)"
     }
 
     # --- Configuration Functions ---
