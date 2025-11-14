@@ -795,42 +795,33 @@
         info "Detecting network bridges..."
         
         BRIDGE_OPTS=()
-        local bridges=""
         
-        # Simple and safe: just list vmbr interfaces from /sys/class/net
+        # Pure bash - no external commands that could segfault
+        # Check if any vmbr interfaces exist
+        local found_bridge=0
         if [[ -d /sys/class/net ]]; then
             for iface in /sys/class/net/vmbr*; do
                 if [[ -e "$iface" ]]; then
-                    local bridge_name=$(basename "$iface")
-                    bridges="${bridges}${bridge_name}"$'\n'
+                    # Extract bridge name using pure bash parameter expansion
+                    local bridge_name="${iface##*/}"  # Remove everything up to last /
+                    BRIDGE_OPTS+=("$bridge_name" "$bridge_name" "OFF")
+                    found_bridge=1
                 fi
             done
         fi
         
-        # Remove trailing newline and check if empty
-        bridges=$(echo "$bridges" | sed '/^$/d')
-        
-        # Fallback: if no bridges found, assume vmbr0
-        if [[ -z "$bridges" ]]; then
-            bridges="vmbr0"
+        # Fallback: if no bridges found, add vmbr0
+        if [[ $found_bridge -eq 0 ]]; then
+            BRIDGE_OPTS+=("vmbr0" "vmbr0" "OFF")
             log "No bridges detected, using default: vmbr0"
-        else
-            log "Detected bridges: $(echo "$bridges" | tr '\n' ' ')"
         fi
-        
-        # Build dialog options array
-        while IFS= read -r bridge; do
-            if [[ -n "$bridge" ]]; then
-                BRIDGE_OPTS+=("$bridge" "$bridge" "OFF")
-            fi
-        done <<< "$bridges"
         
         # Set first bridge as selected by default
         if [[ ${#BRIDGE_OPTS[@]} -ge 3 ]]; then
             BRIDGE_OPTS[2]="ON"
         fi
         
-        msg_ok "Found ${#BRIDGE_OPTS[@]:-0} bridge(s)"
+        msg_ok "Found $((${#BRIDGE_OPTS[@]} / 3)) bridge(s)"
     }
 
     # --- Configuration Functions ---
