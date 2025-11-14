@@ -1020,11 +1020,9 @@
 
     configure_container_security() {
         # Unprivileged containers (recommended for security)
-        dialog --backtitle "$BACKTITLE" --title "Security Configuration" \
+        if dialog --backtitle "$BACKTITLE" --title "Security Configuration" \
             --yesno "Use unprivileged container?\n\n• RECOMMENDED for security\n• Prevents privilege escalation\n• May require additional configuration for some applications\n\nSelect 'No' only if you specifically need privileged access." \
-            12 70
-        
-        if [[ $? -eq 0 ]]; then
+            12 70; then
             UNPRIV=1
             log "Container type: Unprivileged (secure)"
         else
