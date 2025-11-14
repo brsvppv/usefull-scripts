@@ -553,6 +553,7 @@
         
         TEMPLATES=()
         declare -A seen_templates  # Track unique template filenames to avoid duplicates
+        declare -A template_map     # Map display name to full volid
         
         # Get all storage pools that support templates
         local storage_list
@@ -634,10 +635,15 @@
                     fi
                     
                     # Add to templates array with proper formatting
-                    # Format: tag (returned value) | display text | status
-                    # Use only basename for cleaner display, full_volid is the value returned
-                    local display_name="${template_basename}${size_info} ${template_status}"
-                    TEMPLATES+=("$full_volid" "$display_name" "OFF")
+                    # Format: tag (display name) | description | status
+                    # Store mapping to retrieve full volid later
+                    local tag="$template_basename"
+                    local description="${template_basename}${size_info} ${template_status}"
+                    
+                    # Store the mapping from display name to full volid
+                    template_map["$tag"]="$full_volid"
+                    
+                    TEMPLATES+=("$tag" "$description" "OFF")
                     template_count=$((template_count + 1))
                     
                     msg_ok "Added template: ${BL}$template_basename${CL} from $storage $template_status"
@@ -862,7 +868,8 @@
         local dialog_exit=$?
         handle_cancel $dialog_exit
         
-        TEMPLATE_VOLID=$(cat "$TEMP_FILE")
+        local selected_tag=$(cat "$TEMP_FILE")
+        TEMPLATE_VOLID="${template_map[$selected_tag]}"
         
         # Safely extract template basename with fallback
         TEMPLATE_BASENAME="$TEMPLATE_VOLID"
