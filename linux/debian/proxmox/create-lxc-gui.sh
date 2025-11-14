@@ -796,20 +796,37 @@
         
         BRIDGE_OPTS=()
         
-        # Get network interfaces including bridges
-        local bridges
-        bridges=$(ip link show type bridge 2>/dev/null | grep '^[0-9]' | cut -d':' -f2 | sed 's/^ *//g' || echo "vmbr0")
+        # Method 1: Try to get bridges using ip command with safe error handling
+        local bridges=""
+        if command -v ip >/dev/null 2>&1; then
+            bridges=$(ip -o link show type bridge 2>/dev/null | awk -F': ' '{print $2}' | grep -E '^vmbr[0-9]+$' || true)
+        fi
         
-        # Add default vmbr0 if no bridges found
+        # Method 2: Fallback to reading /sys/class/net
+        if [[ -z "$bridges" ]] && [[ -d /sys/class/net ]]; then
+            bridges=$(find /sys/class/net -maxdepth 1 -type l -name 'vmbr*' -printf '%f\n' 2>/dev/null | sort || true)
+        fi
+        
+        # Method 3: Parse /etc/network/interfaces
+        if [[ -z "$bridges" ]] && [[ -f /etc/network/interfaces ]]; then
+            bridges=$(grep -oP '^auto\s+\Kvmbr[0-9]+' /etc/network/interfaces 2>/dev/null || true)
+        fi
+        
+        # Final fallback: assume vmbr0 exists
         [[ -z "$bridges" ]] && bridges="vmbr0"
         
-        while read -r bridge; do
+        # Build dialog options array safely
+        while IFS= read -r bridge; do
             [[ -n "$bridge" ]] || continue
             BRIDGE_OPTS+=("$bridge" "$bridge" "OFF")
         done <<< "$bridges"
         
-        # Select first bridge by default
-        [[ ${#BRIDGE_OPTS[@]} -gt 0 ]] && BRIDGE_OPTS[2]="ON"
+        # Select first bridge by default if we have any
+        if [[ ${#BRIDGE_OPTS[@]} -gt 0 ]]; then
+            BRIDGE_OPTS[2]="ON"
+        fi
+        
+        log "Discovered bridges: ${BRIDGE_OPTS[*]}"
     }
 
     # --- Configuration Functions ---
