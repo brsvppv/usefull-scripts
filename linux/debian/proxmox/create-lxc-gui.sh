@@ -1054,13 +1054,15 @@
         # Process each feature
         for feature in $selected_features; do
             [[ -n "$feature" ]] || continue
-            FEATURES+="$feature=1,"
-            log "DEBUG: Added feature: $feature"
+            if [[ -z "$FEATURES" ]]; then
+                FEATURES="$feature=1"
+            else
+                FEATURES+=",$feature=1"
+            fi
+            log "DEBUG: Added feature: $feature (current FEATURES: $FEATURES)"
         done
         
-        # Remove trailing comma
-        FEATURES=${FEATURES%,}
-        
+        # FEATURES is now properly formatted (no trailing comma)
         log "DEBUG: Final FEATURES string: '$FEATURES'"
         [[ -n "$FEATURES" ]] && log "Features: $FEATURES" || log "Features: none"
     }
@@ -1269,11 +1271,11 @@
         if ! "${PCT_CMD[@]}" >> "$LOG_FILE" 2>&1; then
             log "FAILED $log_cmd"
             
-            # Get detailed error information - use pure bash to avoid tr failures
+            # Get detailed error information - simplified to avoid process substitution issues
             local error_details=""
-            while IFS= read -r line; do
-                error_details+="$line "
-            done < <(tail -20 "$LOG_FILE" 2>/dev/null | grep -E "(ERROR|error|Error|failed|Failed)" 2>/dev/null | tail -3)
+            if [[ -f "$LOG_FILE" ]]; then
+                error_details=$(tail -20 "$LOG_FILE" 2>/dev/null | grep -iE "error|failed" 2>/dev/null | tail -3 | head -c 200 || echo "")
+            fi
             [[ -z "$error_details" ]] && error_details="Unknown error occurred during container creation"
             
             # Provide specific error guidance
