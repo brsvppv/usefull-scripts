@@ -892,7 +892,7 @@
                 break
             else
                 dialog --title "Invalid Container ID" \
-                    --msgbox "Please enter a valid numeric Container ID (100-999999999)\n\nInput was: '$raw_input'\nSanitized to: '$sanitized_input'" 10 60
+                    --msgbox "Please enter a valid numeric Container ID (100-999999999)\n\nInput was: '$raw_input'\nSanitized to: '$sanitized_input'" 10 60 || true
             fi
         done
         
@@ -935,7 +935,7 @@
             else
                 dialog --title "Invalid Hostname" \
                     --msgbox "Hostname validation failed.\n\nInput: '$raw_hostname'\nSanitized: '$sanitized_hostname'\n\nRequirements:\n• 1-63 characters\n• Letters, numbers, and hyphens only\n• Must start and end with letter or number\n• No consecutive hyphens\n• No reserved names" \
-                    14 60
+                    14 60 || true
             fi
         done
     }
@@ -954,7 +954,7 @@
                 break
             else
                 dialog --title "Invalid CPU Count" \
-                    --msgbox "CPU count must be between 1 and 16." 8 40
+                    --msgbox "CPU count must be between 1 and 16." 8 40 || true
             fi
         done
         
@@ -971,7 +971,7 @@
                 break
             else
                 dialog --title "Invalid RAM Size" \
-                    --msgbox "RAM must be between 512 and 16384 MB." 8 40
+                    --msgbox "RAM must be between 512 and 16384 MB." 8 40 || true
             fi
         done
         
@@ -989,7 +989,7 @@
                 break
             else
                 dialog --title "Invalid Swap Size" \
-                    --msgbox "Swap must be numeric and max 8192 MB." 8 40
+                    --msgbox "Swap must be numeric and max 8192 MB." 8 40 || true
             fi
         done
         
@@ -1013,7 +1013,7 @@
                 break
             else
                 dialog --title "Invalid Disk Size" \
-                    --msgbox "Disk size must be between 4 and 500 GB." 8 40
+                    --msgbox "Disk size must be between 4 and 500 GB." 8 40 || true
             fi
         done
     }
@@ -1099,7 +1099,7 @@
                 else
                     dialog --title "Invalid IP Address" \
                         --msgbox "IP address '$IP_CIDR' is invalid.\n\nFormat: 192.168.1.100/24\n• Valid IP address\n• CIDR notation (/8 to /30)" \
-                        10 50
+                        10 50 || true
                 fi
             done
             
@@ -1293,7 +1293,7 @@
             
             dialog --title "Container Creation Failed" \
                 --msgbox "Failed to create container $CTID.\n\nError: $error_details$error_guidance\n\nFull logs: $LOG_FILE" \
-                15 80
+                15 80 || true
             error "Container creation failed: $error_details" $ERR_CONTAINER_CREATION_FAILED
         fi
 
@@ -1331,7 +1331,7 @@
         # Success notification
         dialog --title "Container Created Successfully!" \
             --msgbox "🎉 Container $CTID ($HOSTNAME) has been created successfully!\n\n✅ All validation checks passed\n✅ Configuration verified\n✅ Ready for use\n\nThe container will automatically start on boot (onboot=1)." \
-            12 70
+            12 70 || true
 
         # Post-creation options
         if dialog --title "Container Management" \
@@ -1340,10 +1340,10 @@
             msg_info "Starting container $CTID..."
             if pct start "$CTID" 2>/dev/null; then
                 msg_ok "Container $CTID started successfully"
-                dialog --msgbox "✅ Container $CTID started successfully!\n\nYou can now:\n• Connect via SSH (if configured)\n• Access console: pct enter $CTID\n• Check status: pct status $CTID" 10 60
+                dialog --msgbox "✅ Container $CTID started successfully!\n\nYou can now:\n• Connect via SSH (if configured)\n• Access console: pct enter $CTID\n• Check status: pct status $CTID" 10 60 || true
             else
                 warn "Container created but failed to start"
-                dialog --msgbox "⚠️ Container created but failed to start.\n\nYou can start it manually later:\npct start $CTID\n\nCheck logs for startup issues:\npct status $CTID" 10 60
+                dialog --msgbox "⚠️ Container created but failed to start.\n\nYou can start it manually later:\npct start $CTID\n\nCheck logs for startup issues:\npct status $CTID" 10 60 || true
             fi
         fi
     }
