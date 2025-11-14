@@ -208,6 +208,15 @@
     }
 
     # --- UI & Logging Functions ---
+    # Wrapper for dialog that temporarily disables ERR trap
+    dialog_safe() {
+        trap - ERR
+        dialog "$@"
+        local result=$?
+        trap 'error_handler $LINENO $?' ERR
+        return $result
+    }
+    
     handle_cancel() {
         local exit_code="${1:-$?}"
         if [[ $exit_code -ne 0 ]]; then
@@ -862,11 +871,10 @@
     # --- Configuration Functions ---
     configure_container_basics() {
         # Template selection
-        dialog --backtitle "$BACKTITLE" --title "Select LXC Template" \
+        dialog_safe --backtitle "$BACKTITLE" --title "Select LXC Template" \
             --radiolist "Choose the operating system template for your container:" \
             20 80 10 "${TEMPLATES[@]}" 2>"$TEMP_FILE"
-        local dialog_exit=$?
-        handle_cancel $dialog_exit
+        handle_cancel $?
         
         local selected_tag=$(cat "$TEMP_FILE")
         TEMPLATE_VOLID="${TEMPLATE_MAP[$selected_tag]}"
