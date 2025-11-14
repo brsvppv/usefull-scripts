@@ -575,18 +575,22 @@
             
             if [[ -n "$storage_templates" ]]; then
                 msg_info "Found templates on $storage, processing..."
-                while IFS= read -r template || [[ -n "$template" ]]; do
-                    [[ -n "$template" ]] || continue
-                    [[ "$template" != *"No content"* ]] || continue
+                while IFS= read -r full_volid || [[ -n "$full_volid" ]]; do
+                    [[ -n "$full_volid" ]] || continue
+                    [[ "$full_volid" != *"No content"* ]] || continue
                     
-                    msg_info "Processing template: $template"
+                    msg_info "Processing template: $full_volid"
                     
-                    # Extract template basename for display (much safer)
-                    local template_basename="$template"
+                    # Extract just the filename from the full volume ID
+                    # full_volid format: storage:vztmpl/filename.tar.zst
+                    local template_file="${full_volid##*/}"
+                    
+                    # Extract template basename for display
+                    local template_basename="$template_file"
                     
                     # Try to clean up the basename safely
-                    if [[ "$template" == *.tar.* ]]; then
-                        template_basename="${template%.tar.*}"
+                    if [[ "$template_file" == *.tar.* ]]; then
+                        template_basename="${template_file%.tar.*}"
                     fi
                     
                     # Remove version numbers if present
@@ -600,7 +604,7 @@
                     
                     # Try to get more info, but don't fail if we can't
                     local template_path=""
-                    if template_path=$(pvesm path "$storage:vztmpl/$template" 2>/dev/null) && [[ -n "$template_path" ]]; then
+                    if template_path=$(pvesm path "$full_volid" 2>/dev/null) && [[ -n "$template_path" ]]; then
                         if [[ -f "$template_path" ]]; then
                             local template_size=""
                             if template_size=$(stat -c%s "$template_path" 2>/dev/null) && [[ "$template_size" =~ ^[0-9]+$ ]]; then
@@ -618,12 +622,13 @@
                         fi
                     fi
                     
-                    # Add to templates array
-                    local display_name="$template_basename ($storage)$size_info $template_status"
-                    TEMPLATES+=("$template" "$display_name" "OFF")
+                    # Add to templates array with proper formatting
+                    # Format: tag (returned value) | display text | status
+                    local display_name="${template_basename}$size_info $template_status"
+                    TEMPLATES+=("$full_volid" "$display_name" "OFF")
                     template_count=$((template_count + 1))
                     
-                    msg_ok "Added template: ${BL}$template_basename${CL} on $storage $template_status"
+                    msg_ok "Added template: ${BL}$template_basename${CL} from $storage $template_status"
                     
                 done <<< "$storage_templates"
             else
@@ -1158,45 +1163,72 @@
     }
 
     show_configuration_summary() {
-        SUMMARY="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    Container Configuration Summary
-    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    Container ID:   $CTID
-    Hostname:       $HOSTNAME
-    Template:       $TEMPLATE_BASENAME
-    Target Node:    $TARGET_NODE
-    
-    Resources:
-    CPU Cores:      $CPU
-    Memory:         ${RAM}MB
-    Swap:           ${SWAP}MB
-    Storage:        $STORAGE
-    Disk Size:      ${DISK}GB
-    
-    Security:
-    Type:           $([ "$UNPRIV" -eq 1 ] && echo "Unprivileged" || echo "Privileged")
-    Features:       ${FEATURES:-none}
-    
-    Network:
-    Bridge:         $BRIDGE
-    Configuration:  $([ "$NET_CONFIG" == "dhcp" ] && echo "DHCP" || echo "Static IP")
-    IP Address:     ${IP_CIDR:-auto/dhcp}
-    Gateway:        ${GW:-auto/none}
-    VLAN:           ${VLAN:-none}
-    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        # Determine container type and network configuration
+        local container_type="Unprivileged"
+        [[ "$UNPRIV" -eq 0 ]] && container_type="Privileged"
+        
+        local net_mode="DHCP"
+        [[ "$NET_CONFIG" == "static" ]] && net_mode="Static IP"
+        
+        local features_display="${FEATURES:-none}"
+        local ip_display="${IP_CIDR:-auto/dhcp}"
+        local gw_display="${GW:-auto/none}"
+        local vlan_display="${VLAN:-none}"
+        
+        # Build properly formatted summary
+        SUMMARY="╔════════════════════════════════════════════════════════════════╗
+║          CONTAINER CONFIGURATION SUMMARY                       ║
+╠════════════════════════════════════════════════════════════════╣
+║ BASIC INFORMATION                                              ║
+╟────────────────────────────────────────────────────────────────╢
+║  Container ID  : $(printf '%-45s' "$CTID")║
+║  Hostname      : $(printf '%-45s' "$HOSTNAME")║
+║  Template      : $(printf '%-45s' "$TEMPLATE_BASENAME")║
+║  Target Node   : $(printf '%-45s' "$TARGET_NODE")║
+║                                                                ║
+╟────────────────────────────────────────────────────────────────╢
+║ RESOURCES                                                      ║
+╟────────────────────────────────────────────────────────────────╢
+║  CPU Cores     : $(printf '%-45s' "$CPU cores")║
+║  Memory        : $(printf '%-45s' "${RAM}MB")║
+║  Swap          : $(printf '%-45s' "${SWAP}MB")║
+║  Storage Pool  : $(printf '%-45s' "$STORAGE")║
+║  Disk Size     : $(printf '%-45s' "${DISK}GB")║
+║                                                                ║
+╟────────────────────────────────────────────────────────────────╢
+║ SECURITY                                                       ║
+╟────────────────────────────────────────────────────────────────╢
+║  Type          : $(printf '%-45s' "$container_type")║
+║  Features      : $(printf '%-45s' "$features_display")║
+║                                                                ║
+╟────────────────────────────────────────────────────────────────╢
+║ NETWORK                                                        ║
+╟────────────────────────────────────────────────────────────────╢
+║  Bridge        : $(printf '%-45s' "$BRIDGE")║
+║  Config        : $(printf '%-45s' "$net_mode")║
+║  IP Address    : $(printf '%-45s' "$ip_display")║
+║  Gateway       : $(printf '%-45s' "$gw_display")║
+║  VLAN          : $(printf '%-45s' "$vlan_display")║
+╚════════════════════════════════════════════════════════════════╝"
 
-        if dialog --title "Confirm Container Creation" --yesno "$SUMMARY\n\nProceed with creating this container?" 25 80; then
+        if dialog --title "Confirm Container Creation" \
+            --yes-label "Create" --no-label "Cancel" \
+            --yesno "$SUMMARY\n\nProceed with creating this container?" 30 70; then
             # Close dialog properly before starting creation
             clear
-            tput clear
-            printf '\033c'
+            tput clear 2>/dev/null || true
+            printf '\033c' 2>/dev/null || true
+            sleep 0.2
             return 0
         else
+            # User cancelled - clean exit
             clear
-            tput clear
-            printf '\033c'
-            echo "[INFO] Container creation cancelled by user."
-            exit 1
+            tput clear 2>/dev/null || true
+            printf '\033c' 2>/dev/null || true
+            echo ""
+            echo -e "${YW}[INFO]${CL} Container creation cancelled by user."
+            echo ""
+            exit 0
         fi
     }
 
