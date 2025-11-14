@@ -69,6 +69,7 @@ function Start-Cleanup {
         [Parameter()][switch]$SkipPrefetch,
         [Parameter()][switch]$SkipIISLogs,
         [Parameter()][switch]$SkipUserTemps,
+        [Parameter()][switch]$RunCleanmgr,         # Run Windows Disk Cleanup tool
         
         [Parameter()]
         [ValidateScript({
@@ -335,9 +336,23 @@ function Start-Cleanup {
     }
 
     if ($Aggressive) {
-        # Windows crash dumps
+        # Windows crash dumps (Minidump folder)
         $minidump = Get-TargetFiles -Root "$env:windir\Minidump" -Days $DaysToKeep -Category 'MiniDump'
         Remove-Targets -Category 'MiniDump' -Items $minidump
+        
+        # System memory dump (often large, single file)
+        if (Test-Path "$env:windir\memory.dmp") {
+            try {
+                $memDump = Get-Item "$env:windir\memory.dmp" -ErrorAction Stop
+                if ($memDump.LastWriteTime -lt (Get-Date).AddDays(-$DaysToKeep)) {
+                    if ($PSCmdlet.ShouldProcess("$env:windir\memory.dmp", "Remove")) {
+                        $size = $memDump.Length
+                        Remove-Item -LiteralPath $memDump.FullName -Force -ErrorAction Stop
+                        Add-Result 'MemoryDump' $size 1
+                    }
+                }
+            } catch { Handle-Error 'MemoryDump' $_ }
+        }
         
         # Windows Error Reporting
         $werSystem = Get-TargetFiles -Root "$env:ProgramData\Microsoft\Windows\WER" -Days $DaysToKeep -Category 'WERSystem' -Recurse
@@ -445,6 +460,28 @@ function Start-Cleanup {
                     Select-Object -First 15 | 
                     Select-Object Name, Directory, @{n='SizeGB';e={'{0:N2}' -f ($_.Length/1GB)}}
             } catch { Handle-Error 'LargeFileScan' $_ }
+        }
+
+        # Region: Windows Disk Cleanup (Cleanmgr) - Optional
+        if ($RunCleanmgr -and -not $WhatIfPreference) {
+            try {
+                # Verify cleanmgr.exe exists
+                $cleanmgrPath = Join-Path $env:windir 'System32\cleanmgr.exe'
+                if (Test-Path $cleanmgrPath) {
+                    Write-Verbose "Running Windows Disk Cleanup (cleanmgr.exe)..."
+                    if ($PSCmdlet.ShouldProcess('Windows Disk Cleanup', 'Run cleanmgr.exe /sagerun:1')) {
+                        # /sagerun:1 uses predefined cleanup settings (requires prior /sageset:1 configuration)
+                        $cleanmgrProc = Start-Process -FilePath $cleanmgrPath -ArgumentList '/sagerun:1' -Wait -PassThru -WindowStyle Minimized
+                        if ($cleanmgrProc.ExitCode -eq 0) {
+                            Write-Verbose "Cleanmgr.exe completed successfully"
+                        } else {
+                            Write-Warning "Cleanmgr.exe exited with code: $($cleanmgrProc.ExitCode)"
+                        }
+                    }
+                } else {
+                    Write-Warning "Cleanmgr.exe not found at $cleanmgrPath. Disk Cleanup feature not available."
+                }
+            } catch { Handle-Error 'Cleanmgr' $_ }
         }
 
     $finalDisk = Get-FreeSpaceReport
