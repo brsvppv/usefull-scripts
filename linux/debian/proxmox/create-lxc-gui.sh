@@ -48,7 +48,7 @@
     VLAN=""
     NET_OPTS=""
 
-    # Color definitions for better UX (tteck-style)
+   
     readonly YW="\033[33m"
     readonly GN="\033[32m" 
     readonly RD="\033[31m"
