@@ -46,6 +46,47 @@ py -3 cross-platform/python/cli.py   # Windows (py launcher)
 python3 cross-platform/python/cli.py # Linux
 ```
 
+### Proxmox LXC Management Scripts
+Enterprise-grade tools for managing Proxmox LXC containers. All scripts include production logging, lock file management, and comprehensive error handling.
+
+**Create LXC Container (Console)**
+```bash
+# Interactive console-based container creation
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/brsvppv/usefull-scripts/refs/heads/master/linux/debian/proxmox/create-lxc-console.sh)"
+```
+
+**Create LXC Container (GUI)**
+```bash
+# Dialog-based GUI for container creation with templates
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/brsvppv/usefull-scripts/refs/heads/master/linux/debian/proxmox/create-lxc-gui.sh)"
+```
+
+**Resize LXC Container (Console - V1)**
+```bash
+# Console-based disk resize with dry-run capability
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/brsvppv/usefull-scripts/refs/heads/master/linux/debian/proxmox/resize-lxc-v1.sh)"
+```
+
+**Resize LXC Container (Console - V2)**
+```bash
+# Streamlined console resize with enhanced validation
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/brsvppv/usefull-scripts/refs/heads/master/linux/debian/proxmox/resize-lxc-v2.sh)"
+```
+
+**Resize LXC Container (GUI)**
+```bash
+# Dialog-based GUI for easy disk resizing
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/brsvppv/usefull-scripts/refs/heads/master/linux/debian/proxmox/resize-lxc-gui.sh)"
+```
+
+**Features:**
+- Production-ready logging to `/var/log/proxmox-lxc-*.log`
+- Lock file management prevents concurrent operations
+- Input sanitization and validation
+- Comprehensive error handling with cleanup
+- Cluster and standalone Proxmox support
+- Automatic storage detection and validation
+
 Contributing
 ------------
 When adding a script:

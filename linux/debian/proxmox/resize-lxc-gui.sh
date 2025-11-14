@@ -20,6 +20,7 @@ IFS=$'\n\t'
 readonly LOG_FILE="/var/log/proxmox-lxc-resizer.log"
 readonly BACKTITLE="Proxmox LXC Disk Resizer - GUI Edition"
 readonly TEMP_FILE=$(mktemp)
+readonly LOCK_DIR="/var/run/lxc-resizer"
 
 # Global variables initialization
 CONTAINERS=()
@@ -49,6 +50,12 @@ readonly ERR_CONTAINER_START_FAILED=205
 # --- Core System Functions ---
 cleanup() {
     local exit_code=$?
+    
+    # Remove lock file if it exists
+    if [[ -n "${LOCKFILE:-}" && -f "$LOCKFILE" ]]; then
+        rm -f "$LOCKFILE" 2>/dev/null || true
+        log "Lock released for CT ${SELECTED_CTID:-unknown}"
+    fi
     
     # Enhanced dialog cleanup
     {
@@ -146,6 +153,9 @@ production_checks() {
     # Create log file
     mkdir -p "$(dirname "$LOG_FILE")" || error "Cannot create log directory"
     touch "$LOG_FILE" || error "Cannot create log file at $LOG_FILE"
+    
+    # Create lock directory
+    mkdir -p "$LOCK_DIR" 2>/dev/null || error "Cannot create lock directory at $LOCK_DIR"
 }
 
 ensure_dependencies() {
@@ -327,6 +337,15 @@ select_container() {
            20 80 10 "${CONTAINERS[@]}" 2>"$TEMP_FILE" || handle_cancel
     
     SELECTED_CTID=$(cat "$TEMP_FILE")
+    
+    # Create lock file for this CTID
+    LOCKFILE="${LOCK_DIR}/resize-${SELECTED_CTID}.lock"
+    if [[ -f "$LOCKFILE" ]]; then
+        log "ERROR: Lock file exists for CT $SELECTED_CTID"
+        error "Another resize operation is running for CT $SELECTED_CTID" $ERR_CONTAINER_NOT_FOUND
+    fi
+    touch "$LOCKFILE" || error "Failed to create lock file"
+    log "Lock acquired for CT $SELECTED_CTID"
     
     # Get container details
     STATUS=$(pct status "$SELECTED_CTID" | awk '{print $2}')

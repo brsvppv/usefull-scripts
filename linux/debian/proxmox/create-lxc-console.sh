@@ -1,12 +1,23 @@
 #!/usr/bin/env bash
 # ============================================================
-# Universal LXC Builder for Proxmox VE (Production-ready)
-# Author: GPT-5 for Borislav Popov (styled like tteck scripts)
+# Universal LXC Builder for Proxmox VE (Enterprise Production)
+# Author: GitHub Copilot for Borislav Popov (styled like tteck scripts)
 # License: MIT
+# Version: 2.0 - Enterprise Grade
+# 
+# Improvements:
+# - Production logging with full audit trail
+# - Input sanitization for security
+# - Lock file management
+# - Enhanced error handling and cleanup
 # ============================================================
 
-set -euo pipefail
+set -Eeuo pipefail
 IFS=$'\n\t'
+
+# ---------- Production Configuration ----------
+readonly LOG_FILE="/var/log/proxmox-lxc-builder-console.log"
+readonly LOCK_DIR="/var/run/lxc-builder"
 
 # ---------- Colors & UI ----------
 YW="\033[33m"
@@ -20,26 +31,132 @@ CM="${GN}✓${CL}"
 CROSS="${RD}✗${CL}"
 INFO="${BL}i${CL}"
 
-trap 'echo -e "\n${RD}Interrupted. Exiting.${CL}"; exit 130' INT
+# ---------- Logging & Error Handling ----------
+log() {
+    mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
+    echo "$(date -u '+%Y-%m-%dT%H:%M:%SZ') $1" >> "$LOG_FILE" 2>/dev/null || true
+}
+
+cleanup() {
+    local exit_code=$?
+    
+    # Remove lock file if it exists
+    if [[ -n "${LOCKFILE:-}" && -f "$LOCKFILE" ]]; then
+        rm -f "$LOCKFILE" 2>/dev/null || true
+    fi
+    
+    # Clean temp files
+    rm -f /tmp/lxc-builder-$$.* 2>/dev/null || true
+    
+    log "Script exited with code $exit_code"
+    exit $exit_code
+}
+
+error_handler() {
+    local line_no="${1:-unknown}"
+    local exit_code="${2:-1}"
+    local command="${BASH_COMMAND:-unknown}"
+    
+    log "ERROR at line $line_no: $command (exit $exit_code)"
+    echo -e "${RD}[ERROR]${CL} An error occurred at line $line_no. Check $LOG_FILE for details." >&2
+}
+
+trap 'cleanup' EXIT
+trap 'echo -e "\n${RD}Interrupted. Exiting.${CL}"; log "Operation interrupted by user"; exit 130' INT TERM
+trap 'error_handler $LINENO $?' ERR
 
 function header_info() {
     clear
     echo -e "${BL}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${CL}"
-    echo -e "${GN}        Universal Proxmox LXC Builder (Production)${CL}"
+    echo -e "${GN}    Universal Proxmox LXC Builder (Enterprise Production)${CL}"
     echo -e "${BL}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${CL}\n"
 }
 
 function err_exit() {
     echo -e "${RD}ERROR: $*${CL}" >&2
+    log "FATAL ERROR: $*"
     exit 1
 }
 
+# Input sanitization functions
+validate_hostname() {
+    local hostname="$1"
+    
+    # Sanitize - remove dangerous characters
+    hostname=$(echo "$hostname" | tr -cd 'a-zA-Z0-9-' | head -c 63)
+    
+    # Check if hostname exists after sanitization
+    [[ -n "$hostname" ]] || return 1
+    
+    # Validate format (RFC 1123 compliant)
+    if [[ ! "$hostname" =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$ ]]; then
+        return 1
+    fi
+    
+    # Prevent reserved hostnames
+    case "${hostname,,}" in
+        localhost|root|admin|administrator|system|service|daemon|kernel|proxy*|pve*)
+            return 1
+            ;;
+    esac
+    
+    # Check for consecutive hyphens
+    if [[ "$hostname" == *"--"* ]]; then
+        return 1
+    fi
+    
+    echo "$hostname"
+    return 0
+}
+
+validate_ctid() {
+    local ctid="$1"
+    
+    # Strict sanitization - numeric only
+    ctid=$(echo "$ctid" | tr -cd '0-9' | head -c 10)
+    
+    # Check if CTID is provided
+    [[ -n "$ctid" ]] || return 1
+    
+    # Check range
+    if ! [[ "$ctid" =~ ^[0-9]+$ ]] || [[ $ctid -lt 100 ]] || [[ $ctid -gt 999999999 ]]; then
+        return 1
+    fi
+    
+    # Check if already in use
+    if timeout 5 pct status "$ctid" >/dev/null 2>&1; then
+        echo -e "${RD}Container ID $ctid is already in use by an LXC container${CL}" >&2
+        return 1
+    fi
+    
+    if timeout 5 qm status "$ctid" >/dev/null 2>&1; then
+        echo -e "${RD}Container ID $ctid is already in use by a VM${CL}" >&2
+        return 1
+    fi
+    
+    echo "$ctid"
+    return 0
+}
+
 header_info
+log "LXC Builder Console session started"
 
 # ---------- Pre-flight checks ----------
+log "Starting pre-flight checks"
+
 command -v pveversion >/dev/null 2>&1 || err_exit "This script must be run on a Proxmox host (pveversion missing)."
 command -v pvesm >/dev/null 2>&1 || err_exit "'pvesm' not found. Is this a full Proxmox install?"
 command -v pct >/dev/null 2>&1 || err_exit "'pct' not found. Proxmox LXC tools required."
+
+# Check for root privileges
+if [[ $EUID -ne 0 ]]; then
+    err_exit "This script requires root privileges. Please run as root or with sudo."
+fi
+
+# Create lock directory
+mkdir -p "$LOCK_DIR" 2>/dev/null || err_exit "Cannot create lock directory at $LOCK_DIR"
+
+log "Pre-flight checks passed"
 
 # ---------- Helper: numeric input with default ----------
 read_number_default() {
@@ -169,18 +286,43 @@ echo -e "${GN}Selected bridge: $BRIDGE${CL}\n"
 
 # ---------- Basic Config ----------
 while true; do
-    read -rp "Enter Container ID (CTID, numeric, e.g. 109): " CTID
-    if [[ "$CTID" =~ ^[0-9]+$ ]]; then break; fi
-    echo -e "${RD}CTID must be numeric.${CL}"
+    read -rp "Enter Container ID (CTID, numeric, e.g. 109): " CTID_INPUT
+    if CTID=$(validate_ctid "$CTID_INPUT"); then
+        log "CTID validated: $CTID"
+        break
+    fi
+    echo -e "${RD}Invalid CTID. Must be numeric between 100-999999999 and not in use.${CL}"
 done
 
-read -rp "Enter Hostname: " HOSTNAME
-HOSTNAME=${HOSTNAME:-lxc-$CTID}
+# Create lock file for this CTID
+LOCKFILE="${LOCK_DIR}/lxc-create-${CTID}.lock"
+if [[ -f "$LOCKFILE" ]]; then
+    err_exit "Another creation process is running for CT $CTID. Lock file exists: $LOCKFILE"
+fi
+touch "$LOCKFILE" || err_exit "Failed to create lock file"
+log "Lock acquired for CT $CTID"
+
+while true; do
+    read -rp "Enter Hostname: " HOSTNAME_INPUT
+    HOSTNAME_INPUT=${HOSTNAME_INPUT:-lxc-$CTID}
+    if HOSTNAME=$(validate_hostname "$HOSTNAME_INPUT"); then
+        log "Hostname validated: $HOSTNAME"
+        break
+    fi
+    echo -e "${RD}Invalid hostname. Use only alphanumeric and hyphens, 1-63 chars.${CL}"
+done
 
 CORES=$(read_number_default "CPU cores" "2" 1 64)
+log "CPU cores: $CORES"
+
 RAM=$(read_number_default "Memory (MB)" "2048" 128 262144)
+log "Memory: ${RAM}MB"
+
 DISK=$(read_number_default "Disk size (GB)" "8" 1 8192)
+log "Disk size: ${DISK}GB"
+
 SWAP=$(read_number_default "Swap (MB)" "512" 0 262144)
+log "Swap: ${SWAP}MB"
 
 # ---------- Privileged / Unprivileged ----------
 echo -e "\nShould this container be ${YW}unprivileged${CL}?"
@@ -194,6 +336,7 @@ while true; do
     else echo -e "${RD}Choose 1 or 2.${CL}"; fi
 done
 echo -e "${GN}Unprivileged: $UNPRIV${CL}\n"
+log "Container type: $([ $UNPRIV -eq 1 ] && echo 'Unprivileged' || echo 'Privileged')"
 
 # ---------- Features explanation & selection ----------
 cat <<EOF
@@ -226,6 +369,7 @@ FEATURES=()
 [[ "$NESTING_ANS" =~ ^[Yy] ]] && FEATURES+=("nesting=1")
 [[ "$KEYCTL_ANS" =~ ^[Yy] ]] && FEATURES+=("keyctl=1")
 FEATURES_ARG=$(IFS=,; echo "${FEATURES[*]}")
+log "Features: ${FEATURES_ARG:-none}"
 
 # ---------- Network (DHCP or static) ----------
 echo
@@ -269,6 +413,8 @@ if [[ ! "$CONFIRM" =~ ^[Yy] ]]; then
 fi
 
 # ---------- Build Container ----------
+log "Starting container creation: CT $CTID ($HOSTNAME)"
+log "Command: pct create $CTID with storage=$STORAGE, disk=${DISK}GB, cores=$CORES, ram=${RAM}MB"
 echo -ne "${BFR}${HOLD} Creating container... "
 
 # If template is not on selected storage, we still reference the template by its storage
@@ -301,18 +447,52 @@ if [ -n "${FEATURES_ARG}" ]; then
 fi
 
 # Run creation, capture output/errors
-if "${PCT_CMD[@]}" &>/dev/null; then
+CREATION_OUTPUT=$(mktemp)
+if "${PCT_CMD[@]}" 2>"$CREATION_OUTPUT"; then
     echo -e "${BFR}${CM} Container created successfully."
+    log "SUCCESS: Container CT $CTID ($HOSTNAME) created successfully"
+    
+    # Verify container exists
+    if ! pct status "$CTID" >/dev/null 2>&1; then
+        log "ERROR: Container created but not found in pct list"
+        echo -e "${RD}Warning: Container may not be properly registered${CL}"
+    fi
+    
+    # Verify config file
+    if [[ ! -f "/etc/pve/lxc/$CTID.conf" ]]; then
+        log "ERROR: Container config file missing at /etc/pve/lxc/$CTID.conf"
+        echo -e "${RD}Warning: Container config file not found${CL}"
+    fi
 else
     echo -e "${BFR}${CROSS} Container creation command failed."
-    echo -e "${RD}Running the creation command again with output to show error:${CL}"
-    "${PCT_CMD[@]}" || err_exit "pct create failed. See output above."
+    ERROR_MSG=$(cat "$CREATION_OUTPUT" 2>/dev/null || echo "Unknown error")
+    log "FAILURE: Container creation failed: $ERROR_MSG"
+    echo -e "${RD}Error: $ERROR_MSG${CL}"
+    echo -e "${YW}Running the creation command again with full output:${CL}"
+    "${PCT_CMD[@]}" || err_exit "pct create failed. Check $LOG_FILE for details."
 fi
+rm -f "$CREATION_OUTPUT"
 
 # ---------- Completion ----------
+log "Container creation completed successfully"
+log "Summary: CT $CTID | Hostname: $HOSTNAME | Storage: $STORAGE | Disk: ${DISK}GB | CPU: $CORES | RAM: ${RAM}MB"
+
 echo
-echo -e "${GN}✅ Done!${CL}"
-echo -e "Container ${YW}$CTID${CL} (${GN}$HOSTNAME${CL}) has been created."
-echo -e "To start it: ${YW}pct start $CTID${CL}"
-echo -e "To view config: ${YW}cat /etc/pve/lxc/$CTID.conf${CL}"
+echo -e "${GN}╔══════════════════════════════════════════════════════╗${CL}"
+echo -e "${GN}║           ✅ CONTAINER CREATED! ✅                   ║${CL}"
+echo -e "${GN}╚══════════════════════════════════════════════════════╝${CL}"
+echo
+echo -e "${YW}Container Details:${CL}"
+echo -e "  • Container ID:  ${BL}$CTID${CL}"
+echo -e "  • Hostname:      ${BL}$HOSTNAME${CL}"
+echo -e "  • Storage:       $STORAGE"
+echo -e "  • Resources:     ${CORES} cores, ${RAM}MB RAM, ${DISK}GB disk"
+echo
+echo -e "${BL}Quick Commands:${CL}"
+echo -e "  Start:      ${YW}pct start $CTID${CL}"
+echo -e "  Console:    ${YW}pct enter $CTID${CL}"
+echo -e "  Status:     ${YW}pct status $CTID${CL}"
+echo -e "  Config:     ${YW}cat /etc/pve/lxc/$CTID.conf${CL}"
+echo
+echo -e "${INFO} Operation logged to: $LOG_FILE${CL}"
 echo

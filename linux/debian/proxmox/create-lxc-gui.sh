@@ -208,7 +208,8 @@
 
     # --- UI & Logging Functions ---
     handle_cancel() {
-        if [[ $? -ne 0 ]]; then
+        local exit_code="${1:-$?}"
+        if [[ $exit_code -ne 0 ]]; then
             # Comprehensive dialog and process cleanup
             {
                 # Kill all dialog-related processes with escalating force
@@ -551,6 +552,7 @@
         set +e
         
         TEMPLATES=()
+        declare -A seen_templates  # Track unique template filenames to avoid duplicates
         
         # Get all storage pools that support templates
         local storage_list
@@ -584,6 +586,15 @@
                     # Extract just the filename from the full volume ID
                     # full_volid format: storage:vztmpl/filename.tar.zst
                     local template_file="${full_volid##*/}"
+                    
+                    # Skip if we've already seen this template filename
+                    if [[ -n "${seen_templates[$template_file]}" ]]; then
+                        msg_info "Skipping duplicate template: $template_file (already added from ${seen_templates[$template_file]})"
+                        continue
+                    fi
+                    
+                    # Mark this template as seen
+                    seen_templates[$template_file]="$storage"
                     
                     # Extract template basename for display
                     local template_basename="$template_file"
@@ -624,7 +635,8 @@
                     
                     # Add to templates array with proper formatting
                     # Format: tag (returned value) | display text | status
-                    local display_name="${template_basename}$size_info $template_status"
+                    # Use only basename for cleaner display, full_volid is the value returned
+                    local display_name="${template_basename}${size_info} ${template_status}"
                     TEMPLATES+=("$full_volid" "$display_name" "OFF")
                     template_count=$((template_count + 1))
                     
@@ -847,7 +859,8 @@
         dialog --backtitle "$BACKTITLE" --title "Select LXC Template" \
             --radiolist "Choose the operating system template for your container:" \
             20 80 10 "${TEMPLATES[@]}" 2>"$TEMP_FILE"
-        handle_cancel $?
+        local dialog_exit=$?
+        handle_cancel $dialog_exit
         
         TEMPLATE_VOLID=$(cat "$TEMP_FILE")
         

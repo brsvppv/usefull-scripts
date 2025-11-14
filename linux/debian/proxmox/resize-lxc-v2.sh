@@ -28,9 +28,25 @@ INFO="${BL}i${CL}"
 
 # ---------- Configuration ----------
 readonly LOG_FILE="/var/log/proxmox-lxc-resizer.log"
+readonly LOCK_DIR="/var/run/lxc-resizer"
 
 # ---------- Error handling ----------
-trap 'echo -e "\n${RD}Interrupted. Exiting.${CL}"; exit 130' INT
+trap 'echo -e "\n${RD}Interrupted. Exiting.${CL}"; log "Operation interrupted"; cleanup; exit 130' INT TERM
+
+cleanup() {
+    local exit_code=$?
+    
+    # Remove lock file if it exists
+    if [[ -n "${LOCKFILE:-}" && -f "$LOCKFILE" ]]; then
+        rm -f "$LOCKFILE" 2>/dev/null || true
+        log "Lock released for CT ${CTID:-unknown}"
+    fi
+    
+    log "Script exited with code $exit_code"
+    exit $exit_code
+}
+
+trap 'cleanup' EXIT
 
 function err_exit() {
     echo -e "${RD}[ERROR]${CL} $1" >&2
@@ -166,6 +182,9 @@ if [[ $EUID -ne 0 ]]; then
     err_exit "This script requires root privileges. Please run as root or with sudo."
 fi
 
+# Create lock directory
+mkdir -p "$LOCK_DIR" 2>/dev/null || err_exit "Cannot create lock directory at $LOCK_DIR"
+
 log "LXC Disk Resizer v2 session started"
 
 # ---------- Get container ID ----------
@@ -187,6 +206,7 @@ while true; do
     read -rp "Enter container ID to resize: " CTID
     
     if validate_container_id "$CTID"; then
+        log "Container validated: CT $CTID"
         break
     else
         if [[ ! "$CTID" =~ ^[0-9]+$ ]]; then
@@ -197,6 +217,15 @@ while true; do
         echo
     fi
 done
+
+# Create lock file for this CTID
+LOCKFILE="${LOCK_DIR}/resize-${CTID}.lock"
+if [[ -f "$LOCKFILE" ]]; then
+    log "ERROR: Lock file exists for CT $CTID"
+    err_exit "Another resize operation is running for CT $CTID. Lock file: $LOCKFILE"
+fi
+touch "$LOCKFILE" || err_exit "Failed to create lock file"
+log "Lock acquired for CT $CTID"
 
 # ---------- Get container details ----------
 HOSTNAME=$(get_container_info "$CTID" "hostname")
