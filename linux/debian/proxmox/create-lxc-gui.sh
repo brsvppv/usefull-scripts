@@ -1,7 +1,7 @@
     #!/usr/bin/env bash
     # =================================================================
     # Universal LXC Builder for Proxmox VE - Production GUI Edition
-    # Author: brsvppv for Borislav Popov
+    # Author: brsvppv
     # License: MIT
     # 
     # Features:
@@ -1051,8 +1051,8 @@
         
         log "DEBUG: After quote removal: '$selected_features'"
         
-        # Process each feature
-        for feature in $selected_features; do
+        # Process each feature - MUST use unquoted variable to allow word splitting
+        for feature in ${selected_features}; do
             [[ -n "$feature" ]] || continue
             if [[ -z "$FEATURES" ]]; then
                 FEATURES="$feature=1"

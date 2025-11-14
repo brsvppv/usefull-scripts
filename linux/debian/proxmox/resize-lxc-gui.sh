@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =================================================================
 # Proxmox LXC Disk Resizer - GUI Edition
-# Author: brsvppv for Borislav Popov  
+# Author: brsvppv  
 # License: MIT
 # 
 # Features:
