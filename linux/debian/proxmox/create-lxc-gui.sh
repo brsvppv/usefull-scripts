@@ -1051,7 +1051,9 @@
         
         log "DEBUG: After quote removal: '$selected_features'"
         
-        # Process each feature - MUST use unquoted variable to allow word splitting
+        # Process each feature - need to temporarily reset IFS for space splitting
+        local old_ifs="$IFS"
+        IFS=' '
         for feature in ${selected_features}; do
             [[ -n "$feature" ]] || continue
             if [[ -z "$FEATURES" ]]; then
@@ -1061,6 +1063,7 @@
             fi
             log "DEBUG: Added feature: $feature (current FEATURES: $FEATURES)"
         done
+        IFS="$old_ifs"
         
         # FEATURES is now properly formatted (no trailing comma)
         log "DEBUG: Final FEATURES string: '$FEATURES'"
