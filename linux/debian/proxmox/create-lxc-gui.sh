@@ -208,14 +208,8 @@
     }
 
     # --- UI & Logging Functions ---
-    # Wrapper for dialog that temporarily disables ERR trap
-    dialog() {
-        trap - ERR
-        dialog "$@"
-        local result=$?
-        trap 'error_handler $LINENO $?' ERR
-        return $result
-    }
+    # Note: We don't wrap dialog command since ERR trap is already disabled in cleanup()
+    # and wrapping causes infinite recursion. Dialog exit codes work correctly with || operator.
     
     handle_cancel() {
         clear
