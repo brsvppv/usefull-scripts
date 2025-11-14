@@ -308,7 +308,7 @@
                 *) error_details="\n\nCheck logs: $LOG_FILE" ;;
             esac
             
-            dialog --title "Critical Error" --msgbox "[ERROR] $1$error_details" 12 70 2>/dev/null || true
+            dialog_safe --title "Critical Error" --msgbox "[ERROR] $1$error_details" 12 70 2>/dev/null || true
         fi
         
         exit "$exit_code"
@@ -894,7 +894,7 @@
         
         # Node selection for clusters
         if [[ ${#NODE_OPTS[@]} -gt 0 ]]; then
-            dialog --backtitle "$BACKTITLE" --title "Select Target Node" \
+            dialog_safe --backtitle "$BACKTITLE" --title "Select Target Node" \
                 --radiolist "Choose the Proxmox node where the container will be created:" \
                 15 60 8 "${NODE_OPTS[@]}" 2>"$TEMP_FILE"
             handle_cancel $?
@@ -915,7 +915,7 @@
             # Ensure clean input field by explicitly setting the default value
             echo -n "$suggested_ctid" > "$ctid_temp"
             
-            dialog --backtitle "$BACKTITLE" --title "Container ID" \
+            dialog_safe --backtitle "$BACKTITLE" --title "Container ID" \
                 --inputbox "Container ID:" \
                 8 40 "$suggested_ctid" 2>"$ctid_temp"
             
@@ -944,7 +944,7 @@
                 log "Container ID: $CTID (validated and sanitized)"
                 break
             else
-                dialog --title "Invalid Container ID" \
+                dialog_safe --title "Invalid Container ID" \
                     --msgbox "Please enter a valid numeric Container ID (100-999999999)\n\nInput was: '$raw_input'\nSanitized to: '$sanitized_input'" 10 60
             fi
         done
@@ -960,7 +960,7 @@
             local hostname_temp
             hostname_temp=$(mktemp -t "lxc-hostname.XXXXXX") || error "Failed to create temp file"
             
-            dialog --backtitle "$BACKTITLE" --title "Container Hostname" \
+            dialog_safe --backtitle "$BACKTITLE" --title "Container Hostname" \
                 --inputbox "Hostname:" \
                 8 40 "${default_hostname}" 2>"$hostname_temp"
             
@@ -987,7 +987,7 @@
                 log "Hostname: $HOSTNAME (validated and sanitized)"
                 break
             else
-                dialog --title "Invalid Hostname" \
+                dialog_safe --title "Invalid Hostname" \
                     --msgbox "Hostname validation failed.\n\nInput: '$raw_hostname'\nSanitized: '$sanitized_hostname'\n\nRequirements:\n• 1-63 characters\n• Letters, numbers, and hyphens only\n• Must start and end with letter or number\n• No consecutive hyphens\n• No reserved names" \
                     14 60
             fi
@@ -997,7 +997,7 @@
     configure_container_resources() {
         # CPU cores
         while true; do
-            dialog --backtitle "$BACKTITLE" --title "CPU Configuration" \
+            dialog_safe --backtitle "$BACKTITLE" --title "CPU Configuration" \
                 --inputbox "Enter the number of CPU cores (1-16):" \
                 10 50 "2" 2>"$TEMP_FILE"
             handle_cancel $?
@@ -1008,14 +1008,14 @@
                 log "CPU cores: $CPU"
                 break
             else
-                dialog --title "Invalid CPU Count" \
+                dialog_safe --title "Invalid CPU Count" \
                     --msgbox "CPU count must be between 1 and 16." 8 40
             fi
         done
         
         # Memory
         while true; do
-            dialog --backtitle "$BACKTITLE" --title "Memory Configuration" \
+            dialog_safe --backtitle "$BACKTITLE" --title "Memory Configuration" \
                 --inputbox "Enter RAM size in MB (512-16384):" \
                 10 50 "1024" 2>"$TEMP_FILE"
             handle_cancel $?
@@ -1026,7 +1026,7 @@
                 log "RAM: ${RAM}MB"
                 break
             else
-                dialog --title "Invalid RAM Size" \
+                dialog_safe --title "Invalid RAM Size" \
                     --msgbox "RAM must be between 512 and 16384 MB." 8 40
             fi
         done
@@ -1034,7 +1034,7 @@
         # Swap
         while true; do
             local suggested_swap=$((RAM / 2))
-            dialog --backtitle "$BACKTITLE" --title "Swap Configuration" \
+            dialog_safe --backtitle "$BACKTITLE" --title "Swap Configuration" \
                 --inputbox "Enter swap size in MB (0 to disable):" \
                 10 50 "$suggested_swap" 2>"$TEMP_FILE"
             handle_cancel $?
@@ -1045,13 +1045,13 @@
                 log "Swap: ${SWAP}MB"
                 break
             else
-                dialog --title "Invalid Swap Size" \
+                dialog_safe --title "Invalid Swap Size" \
                     --msgbox "Swap must be numeric and max 8192 MB." 8 40
             fi
         done
         
         # Storage pool
-        dialog --backtitle "$BACKTITLE" --title "Storage Selection" \
+        dialog_safe --backtitle "$BACKTITLE" --title "Storage Selection" \
             --radiolist "Choose storage pool for the container:" \
             15 70 8 "${STORAGE_OPTS[@]}" 2>"$TEMP_FILE"
         handle_cancel $?
@@ -1060,7 +1060,7 @@
         
         # Disk size
         while true; do
-            dialog --backtitle "$BACKTITLE" --title "Disk Configuration" \
+            dialog_safe --backtitle "$BACKTITLE" --title "Disk Configuration" \
                 --inputbox "Enter disk size in GB (4-500):" \
                 10 50 "8" 2>"$TEMP_FILE"
             handle_cancel $?
@@ -1071,7 +1071,7 @@
                 log "Storage: $STORAGE, Disk: ${DISK}GB"
                 break
             else
-                dialog --title "Invalid Disk Size" \
+                dialog_safe --title "Invalid Disk Size" \
                     --msgbox "Disk size must be between 4 and 500 GB." 8 40
             fi
         done
@@ -1079,7 +1079,7 @@
 
     configure_container_security() {
         # Unprivileged containers (recommended for security)
-        dialog --backtitle "$BACKTITLE" --title "Security Configuration" \
+        dialog_safe --backtitle "$BACKTITLE" --title "Security Configuration" \
             --yesno "Use unprivileged container?\n\n• RECOMMENDED for security\n• Prevents privilege escalation\n• May require additional configuration for some applications\n\nSelect 'No' only if you specifically need privileged access." \
             12 70
         
@@ -1092,7 +1092,7 @@
         fi
         
         # Additional features
-        dialog --backtitle "$BACKTITLE" --title "Container Features" \
+        dialog_safe --backtitle "$BACKTITLE" --title "Container Features" \
             --checklist "Select additional features (optional):" \
             15 70 5 \
             "nesting" "Enable container nesting (Docker in LXC)" "OFF" \
@@ -1115,7 +1115,7 @@
 
     configure_container_network() {
         # Bridge selection
-        dialog --backtitle "$BACKTITLE" --title "Network Bridge" \
+        dialog_safe --backtitle "$BACKTITLE" --title "Network Bridge" \
             --radiolist "Select network bridge:" \
             12 60 5 "${BRIDGE_OPTS[@]}" 2>"$TEMP_FILE"
         handle_cancel $?
@@ -1123,7 +1123,7 @@
         BRIDGE=$(cat "$TEMP_FILE")
         
         # Network configuration
-        dialog --backtitle "$BACKTITLE" --title "Network Configuration" \
+        dialog_safe --backtitle "$BACKTITLE" --title "Network Configuration" \
             --radiolist "Choose network configuration:" \
             12 60 3 \
             "dhcp" "DHCP (Automatic IP assignment)" "ON" \
@@ -1135,7 +1135,7 @@
         if [[ "$NET_CONFIG" == "static" ]]; then
             # Static IP configuration
             while true; do
-                dialog --backtitle "$BACKTITLE" --title "Static IP Configuration" \
+                dialog_safe --backtitle "$BACKTITLE" --title "Static IP Configuration" \
                     --inputbox "Enter IP address with CIDR (e.g., 192.168.1.100/24):" \
                     10 60 "" 2>"$TEMP_FILE"
                 handle_cancel $?
@@ -1145,14 +1145,14 @@
                 if validate_ip_cidr "$IP_CIDR"; then
                     break
                 else
-                    dialog --title "Invalid IP Address" \
+                    dialog_safe --title "Invalid IP Address" \
                         --msgbox "IP address '$IP_CIDR' is invalid.\n\nFormat: 192.168.1.100/24\n• Valid IP address\n• CIDR notation (/8 to /30)" \
                         10 50
                 fi
             done
             
             # Gateway
-            dialog --backtitle "$BACKTITLE" --title "Gateway Configuration" \
+            dialog_safe --backtitle "$BACKTITLE" --title "Gateway Configuration" \
                 --inputbox "Enter gateway IP address (leave empty for auto):" \
                 10 60 "" 2>"$TEMP_FILE"
             handle_cancel $?
@@ -1160,7 +1160,7 @@
             GW=$(cat "$TEMP_FILE")
             
             # VLAN (optional)
-            dialog --backtitle "$BACKTITLE" --title "VLAN Configuration" \
+            dialog_safe --backtitle "$BACKTITLE" --title "VLAN Configuration" \
                 --inputbox "Enter VLAN ID (leave empty for no VLAN):" \
                 10 60 "" 2>"$TEMP_FILE"
             handle_cancel $?
@@ -1178,7 +1178,7 @@
             NET_OPTS="name=eth0,bridge=$BRIDGE,ip=dhcp"
             
             # VLAN for DHCP (optional)
-            dialog --backtitle "$BACKTITLE" --title "VLAN Configuration" \
+            dialog_safe --backtitle "$BACKTITLE" --title "VLAN Configuration" \
                 --inputbox "Enter VLAN ID (leave empty for no VLAN):" \
                 10 60 "" 2>"$TEMP_FILE"
             handle_cancel $?
@@ -1239,7 +1239,7 @@
 ║  VLAN          : $(printf '%-45s' "$vlan_display")║
 ╚════════════════════════════════════════════════════════════════╝"
 
-        if dialog --title "Confirm Container Creation" \
+        if dialog_safe --title "Confirm Container Creation" \
             --yes-label "Create" --no-label "Cancel" \
             --yesno "$SUMMARY\n\nProceed with creating this container?" 30 70; then
             # Close dialog properly before starting creation
@@ -1339,7 +1339,7 @@
                 error_guidance="\n\nSolution: Check network configuration and bridge availability"
             fi
             
-            dialog --title "Container Creation Failed" \
+            dialog_safe --title "Container Creation Failed" \
                 --msgbox "Failed to create container $CTID.\n\nError: $error_details$error_guidance\n\nFull logs: $LOG_FILE" \
                 15 80
             error "Container creation failed: $error_details" $ERR_CONTAINER_CREATION_FAILED
@@ -1377,12 +1377,12 @@
         msg_ok "Container ${BL}$CTID${CL} (${GN}$HOSTNAME${CL}) created successfully!"
 
         # Success notification
-        dialog --title "Container Created Successfully!" \
+        dialog_safe --title "Container Created Successfully!" \
             --msgbox "🎉 Container $CTID ($HOSTNAME) has been created successfully!\n\n✅ All validation checks passed\n✅ Configuration verified\n✅ Ready for use\n\nThe container will automatically start on boot (onboot=1)." \
             12 70
 
         # Post-creation options
-        dialog --title "Container Management" \
+        dialog_safe --title "Container Management" \
             --yesno "Would you like to start container $CTID now?\n\nYou can also start it later using:\npct start $CTID" \
             10 60
         if [[ $? -eq 0 ]]; then
