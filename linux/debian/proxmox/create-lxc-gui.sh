@@ -321,7 +321,7 @@
         local ctid="$1"
         
         # Strict input sanitization - remove any non-numeric characters
-        ctid=$(echo "$ctid" | tr -cd '0-9' | head -c 10)  # Limit to 10 digits max
+        ctid=$(echo "$ctid" | tr -cd '0-9' 2>/dev/null | head -c 10 || echo "")  # Limit to 10 digits max
         
         # Check if CTID is provided after sanitization
         [[ -n "$ctid" ]] || error "Container ID (CTID) is required" $ERR_MISSING_CTID
@@ -353,7 +353,7 @@
         local hostname="$1"
         
         # Strict input sanitization - remove dangerous characters
-        hostname=$(echo "$hostname" | tr -cd 'a-zA-Z0-9-' | head -c 63)
+        hostname=$(echo "$hostname" | tr -cd 'a-zA-Z0-9-' 2>/dev/null | head -c 63 || echo "")
         
         # Check if hostname exists after sanitization
         [[ -n "$hostname" ]] || return 1
@@ -388,7 +388,7 @@
         local ip_cidr="$1"
         
         # Sanitize input - remove dangerous characters and limit length
-        ip_cidr=$(echo "$ip_cidr" | tr -cd '0-9./' | head -c 18)
+        ip_cidr=$(echo "$ip_cidr" | tr -cd '0-9./' 2>/dev/null | head -c 18 || echo "")
         
         # Skip validation for DHCP
         [[ "$ip_cidr" == "dhcp" ]] && return 0
@@ -879,7 +879,7 @@
             
             # Multi-stage sanitization - ensure we get only numbers
             local sanitized_input
-            sanitized_input=$(echo "$raw_input" | tr -cd '0-9' | head -c 10)
+            sanitized_input=$(echo "$raw_input" | tr -cd '0-9' 2>/dev/null | head -c 10 || echo "")
             
             # If input is empty after sanitization, use the suggested value
             if [[ -z "$sanitized_input" ]]; then
@@ -899,7 +899,7 @@
         # Hostname
         # Generate safe default hostname
         local safe_basename
-        safe_basename=$(echo "$TEMPLATE_BASENAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]//g' | sed 's/^-\+\|-\+$//g' | sed 's/--\+/-/g')
+        safe_basename=$(echo "$TEMPLATE_BASENAME" | tr '[:upper:]' '[:lower:]' 2>/dev/null | sed 's/[^a-z0-9-]//g' | sed 's/^-\+\|-\+$//g' | sed 's/--\+/-/g' || echo "lxc")
         [[ -z "$safe_basename" ]] && safe_basename="container"
         local default_hostname="${safe_basename}-${CTID}"
         while true; do
@@ -923,7 +923,7 @@
             
             # Multi-stage hostname sanitization
             local sanitized_hostname
-            sanitized_hostname=$(echo "$raw_hostname" | tr -cd 'a-zA-Z0-9-' | head -c 63)
+            sanitized_hostname=$(echo "$raw_hostname" | tr -cd 'a-zA-Z0-9-' 2>/dev/null | head -c 63 || echo "")
             
             # Remove leading/trailing hyphens
             sanitized_hostname=$(echo "$sanitized_hostname" | sed 's/^-*//' | sed 's/-*$//')
@@ -1269,8 +1269,11 @@
         if ! "${PCT_CMD[@]}" >> "$LOG_FILE" 2>&1; then
             log "FAILED $log_cmd"
             
-            # Get detailed error information
-            local error_details=$(tail -20 "$LOG_FILE" | grep -E "(ERROR|error|Error|failed|Failed)" | tail -3 | tr '\n' ' ')
+            # Get detailed error information - use pure bash to avoid tr failures
+            local error_details=""
+            while IFS= read -r line; do
+                error_details+="$line "
+            done < <(tail -20 "$LOG_FILE" 2>/dev/null | grep -E "(ERROR|error|Error|failed|Failed)" 2>/dev/null | tail -3)
             [[ -z "$error_details" ]] && error_details="Unknown error occurred during container creation"
             
             # Provide specific error guidance
