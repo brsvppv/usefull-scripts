@@ -245,33 +245,24 @@
                 exec 5>&- 2>/dev/null || true
             } >/dev/null 2>&1
             
-            # Multi-stage terminal restoration
-            {
-                # Stage 1: Basic restoration
-                tput sgr0 2>/dev/null || true
-                tput cnorm 2>/dev/null || true
-                tput rmcup 2>/dev/null || true
-                
-                # Stage 2: Complete reset
-                printf '\033c' 2>/dev/null || true
-                printf '\033[!p' 2>/dev/null || true
-                printf '\033[?3;4l' 2>/dev/null || true
-                printf '\033[4l' 2>/dev/null || true
-                printf '\033>' 2>/dev/null || true
-                
-                # Stage 3: Clear all buffers
-                printf '\033[2J\033[H' 2>/dev/null || true
-                printf '\033[3J' 2>/dev/null || true
-                
-                # Stage 4: Reset terminal characteristics
-                stty sane 2>/dev/null || true
-                reset 2>/dev/null || true
-                tput init 2>/dev/null || true
-                clear 2>/dev/null || true
-            } >/dev/null 2>&1
+            # Multi-stage terminal restoration (NOT suppressed - needs to be visible)
+            # Stage 1: Exit alternate screen buffer (dialog mode)
+            tput rmcup 2>/dev/null || true
+            
+            # Stage 2: Full terminal reset
+            reset 2>/dev/null || printf '\033c'
+            
+            # Stage 3: Ensure cursor is visible
+            tput cnorm 2>/dev/null || printf '\033[?25h'
+            
+            # Stage 4: Clear screen completely
+            clear 2>/dev/null || printf '\033[2J\033[H'
+            
+            # Stage 5: Reset terminal state
+            stty sane 2>/dev/null || true
             
             # Give terminal time to settle
-            sleep 0.1
+            sleep 0.2
             
             # Final cleanup and user message
             echo ""
