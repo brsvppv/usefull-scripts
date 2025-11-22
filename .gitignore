@@ -110,10 +110,12 @@ local-*.sh
 
 # --- Documentation Files ---
 # Ignore all markdown files except main README.md
+# Ignore all markdown files by default (e.g. temporary notes)
 *.md
-!README.md
 
-CONTRIBUTING.md
-project_analysis.md
-CONTRIBUTING.md
-README.md
+# Exceptions (Track these files)
+!README.md
+!CONTRIBUTING.md
+
+# Ignore documentation directory
+docs/
