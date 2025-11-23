@@ -10,6 +10,9 @@
 # - Input sanitization for security
 # - Lock file management
 # - Enhanced error handling and cleanup
+#
+# Usage (GitHub):
+#   bash -c "$(curl -fsSL https://raw.githubusercontent.com/brsvppv/usefull-scripts/master/linux/debian/proxmox/create-lxc-console.sh)"
 # ============================================================
 
 set -Eeuo pipefail

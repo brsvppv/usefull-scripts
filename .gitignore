@@ -119,3 +119,4 @@ local-*.sh
 
 # Ignore documentation directory
 docs/
+!docs/powershell_scripts.md

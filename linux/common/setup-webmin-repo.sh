@@ -3,6 +3,10 @@
 # webmin-setup-repo.sh
 # Sets up a stable, prerelease, or unstable repository to provide Webmin and
 # Usermin packages on Debian-based and RPM-based systems
+#
+# Usage (GitHub):
+#   bash -c "$(curl -fsSL https://raw.githubusercontent.com/brsvppv/usefull-scripts/master/linux/common/setup-webmin-repo.sh)"
+#
 
 # Default values that can be overridden
 repo_host="download.webmin.com"

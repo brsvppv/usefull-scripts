@@ -61,22 +61,49 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/brsvppv/usefull-scripts/
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/brsvppv/usefull-scripts/refs/heads/master/linux/debian/proxmox/create-lxc-gui.sh)"
 ```
 
-**Resize LXC Container (Console - V1)**
-```bash
-# Console-based disk resize with dry-run capability
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/brsvppv/usefull-scripts/refs/heads/master/linux/debian/proxmox/resize-lxc-v1.sh)"
-```
-
-**Resize LXC Container (Console - V2)**
+**Resize LXC Container (Console)**
 ```bash
 # Streamlined console resize with enhanced validation
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/brsvppv/usefull-scripts/refs/heads/master/linux/debian/proxmox/resize-lxc-v2.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/brsvppv/usefull-scripts/refs/heads/master/linux/debian/proxmox/resize-lxc.sh)"
 ```
 
 **Resize LXC Container (GUI)**
 ```bash
 # Dialog-based GUI for easy disk resizing
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/brsvppv/usefull-scripts/refs/heads/master/linux/debian/proxmox/resize-lxc-gui.sh)"
+```
+
+### Samba Management
+Production-ready tools for Samba administration.
+
+**Samba Audit Report**
+```bash
+# Generate HTML audit report
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/brsvppv/usefull-scripts/refs/heads/master/linux/debian/samba/samba_audit.sh)" -- --output-dir /var/www/html
+```
+
+**Add Samba User**
+```bash
+# Add user with robust permissions and ACLs
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/brsvppv/usefull-scripts/refs/heads/master/linux/debian/samba/add_samba_user.sh)" -- -u alice -S Data -m rw
+```
+
+### PowerShell Tools (Windows)
+Modern, secure, and production-ready PowerShell scripts.
+
+**Install PowerShell 7**
+```powershell
+irm https://raw.githubusercontent.com/brsvppv/usefull-scripts/master/windows/powershell/Install-PowerShell.ps1 | iex
+```
+
+**Generate Secure Passwords**
+```powershell
+irm https://raw.githubusercontent.com/brsvppv/usefull-scripts/master/windows/powershell/New-SecurePassword.ps1 | iex
+```
+
+**System Cleanup**
+```powershell
+irm https://raw.githubusercontent.com/brsvppv/usefull-scripts/master/windows/powershell/Start-SystemCleanup.ps1 | iex
 ```
 
 **Features:**

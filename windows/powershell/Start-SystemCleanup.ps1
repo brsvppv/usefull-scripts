@@ -30,12 +30,12 @@
 
 .EXAMPLE
     # Dry run directly from GitHub (no changes made)
-    PS> irm https://raw.githubusercontent.com/brsvppv/usefull-scripts/master/windows/powershell/Start-Cleanup.ps1 | iex
+    PS> irm https://raw.githubusercontent.com/brsvppv/usefull-scripts/master/windows/powershell/Start-SystemCleanup.ps1 | iex
     PS> Start-Cleanup -DryRun -Verbose
 
 .EXAMPLE
     # One-liner: download & execute with JSON log to C:\Logs
-    PS> irm https://raw.githubusercontent.com/brsvppv/usefull-scripts/master/windows/powershell/Start-Cleanup.ps1 | iex; \
+    PS> irm https://raw.githubusercontent.com/brsvppv/usefull-scripts/master/windows/powershell/Start-SystemCleanup.ps1 | iex; \
         Start-Cleanup -LogPath C:\Logs\Cleanup-$(Get-Date -Format yyyyMMdd-HHmmss).json -Confirm:$false
 
 .NOTES
